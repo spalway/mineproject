@@ -125,6 +125,106 @@ function banner() {
 </svg>`
 }
 
+// ------------------------------------------------------------------ card
+
+/**
+ * 1600x900. Sector lattice, the cat, and a terminal tag bottom right.
+ * Deterministic — no Math.random, so it regenerates identically.
+ */
+function card() {
+  const W = 1600
+  const H = 900
+  const CELL = 40
+  const GAP = 9
+  const STEP = CELL + GAP
+
+  // --- lattice -------------------------------------------------------
+  const cells = []
+  const cols = Math.ceil(W / STEP) + 1
+  const rows = Math.ceil(H / STEP) + 1
+
+  // Keep-out boxes. Lattice cells that touch these are dropped so the cat and
+  // the tag sit on clean background instead of fighting coloured squares.
+  const keepOut = [
+    { x0: 100, y0: 140, x1: 710, y1: 750 }, // cat
+    { x0: 1300, y0: 790, x1: 1560, y1: 870 }, // /nodei tag
+  ]
+  const blocked = (x, y) =>
+    keepOut.some(
+      (k) => x + CELL > k.x0 && x < k.x1 && y + CELL > k.y0 && y < k.y1,
+    )
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = c * STEP - STEP / 2
+      const y = r * STEP - STEP / 2
+      if (blocked(x, y)) continue
+
+      // Fade outward from the centre so the grid dissolves instead of
+      // stopping at a hard edge.
+      const dx = (x + CELL / 2 - W / 2) / (W / 2)
+      const dy = (y + CELL / 2 - H / 2) / (H / 2)
+      const fade = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) * 0.85)
+      if (fade <= 0.02) continue
+
+      const n = Math.abs((Math.sin(r * 12.9898 + c * 78.233) * 43758.5453) % 1)
+
+      let fill = 'none'
+      let stroke = DIM
+      let strokeOpacity = fade * 0.26
+      let fillOpacity = 0
+
+      if (n > 0.962) {
+        fill = RED
+        stroke = RED
+        strokeOpacity = fade * 0.7
+        fillOpacity = fade * 0.16
+      } else if (n > 0.885) {
+        fill = GREEN
+        stroke = GREEN
+        strokeOpacity = fade * 0.62
+        fillOpacity = fade * 0.13
+      }
+
+      cells.push(
+        `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${CELL}" height="${CELL}" ` +
+          `fill="${fill}" fill-opacity="${fillOpacity.toFixed(3)}" ` +
+          `stroke="${stroke}" stroke-opacity="${strokeOpacity.toFixed(3)}" stroke-width="1"/>`,
+      )
+    }
+  }
+
+  // --- cat -----------------------------------------------------------
+  const FONT = 46
+  const LINE = 54
+  const catTop = (H - CAT.length * LINE) / 2 + FONT * 0.8
+  const catLeft = 150
+
+  const catLines = CAT.map(
+    (l, i) =>
+      `<text x="${catLeft}" y="${(catTop + i * LINE).toFixed(1)}" font-family="${MONO}" ` +
+      `font-size="${FONT}" fill="${GREEN}" text-anchor="start" xml:space="preserve">${esc(l)}</text>`,
+  ).join('\n  ')
+
+  // --- terminal tag, bottom right -------------------------------------
+  const TAG = 44
+  const tagY = H - 70
+  const tagRight = W - 96
+  const cursorW = 20
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${BG}"/>
+  <g shape-rendering="crispEdges">
+  ${cells.join('\n  ')}
+  </g>
+  <rect x="40.5" y="40.5" width="${W - 81}" height="${H - 81}" fill="none" stroke="${FAINT}" stroke-width="1"/>
+  ${catLines}
+  <text x="${tagRight}" y="${tagY}" font-family="${MONO}" font-size="${TAG}" fill="${GREEN}"
+        text-anchor="end" xml:space="preserve">/nodei</text>
+  <rect x="${tagRight + 12}" y="${tagY - TAG * 0.72}" width="${cursorW}" height="${TAG * 0.78}" fill="${GREEN}"/>
+</svg>`
+}
+
 // ------------------------------------------------------------------ main
 
 mkdirSync('brand', { recursive: true })
@@ -132,6 +232,7 @@ mkdirSync('brand', { recursive: true })
 const assets = [
   { name: 'pfp', svg: pfp(), width: 400 },
   { name: 'banner', svg: banner(), width: 1500 },
+  { name: 'card', svg: card(), width: 1600 },
 ]
 
 for (const a of assets) {
