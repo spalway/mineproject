@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
-import { useClaim } from '@/hooks/useClaim'
 import { pad } from '@/lib/format'
 
 export type WalletInfo = {
@@ -36,38 +35,44 @@ export function useWalletInfo() {
   return { info, reload: load }
 }
 
+/**
+ * Presentational. The page owns the claim/release actions so a click on the
+ * field and a click on this button run the exact same code path.
+ */
 export function ClaimBar({
   sector,
   minTokens,
   tokenMint,
   info,
-  onChanged,
+  busy,
+  connected,
+  onClaim,
+  onRelease,
 }: {
   sector: number | null
   minTokens: number
   tokenMint: string
   info: WalletInfo | null
-  onChanged: () => void
+  busy: boolean
+  connected: boolean
+  onClaim: (sector: number) => void
+  onRelease: (spotId: number) => void
 }) {
-  const { claim, release, busy, connected } = useClaim(onChanged)
-
   const held = info?.spot ?? null
   const eligible = info?.eligible ?? false
-
-  const canClaim =
-    connected && !!tokenMint && eligible && !held && sector !== null && !busy
+  const canClaim = connected && !!tokenMint && eligible && !held && sector !== null && !busy
 
   const hint = !connected
-    ? 'connect a wallet to claim a spot'
+    ? 'connect a wallet, then click any open sector to claim it'
     : !tokenMint
       ? 'token mint not configured yet, claiming is closed'
       : !eligible
         ? `hold ${minTokens.toLocaleString()} tokens to claim a spot` +
           (info ? ` · you hold ${Math.floor(info.tokens).toLocaleString()}` : '')
         : held
-          ? `you hold sector ${pad(held.sector)} at depth ${held.depth}`
+          ? `you hold sector ${pad(held.sector)} at depth ${held.depth} · one spot per wallet`
           : sector === null
-            ? 'select an open sector on the field'
+            ? 'click any open sector on the field to claim it'
             : 'claiming costs nothing and moves no funds'
 
   return (
@@ -89,15 +94,15 @@ export function ClaimBar({
 
         {held ? (
           <button
-            onClick={() => void release(held.id)}
+            onClick={() => onRelease(held.id)}
             disabled={busy}
-            className="border border-pj-faint px-6 font-bold tracking-widest hover:border-pj-amber hover:text-pj-amber disabled:opacity-40"
+            className="border border-pj-red px-6 font-bold tracking-widest text-pj-red hover:bg-pj-red hover:text-pj-bg disabled:opacity-40"
           >
             {busy ? 'signing' : 'release spot'}
           </button>
         ) : (
           <button
-            onClick={() => sector !== null && void claim(sector)}
+            onClick={() => sector !== null && onClaim(sector)}
             disabled={!canClaim}
             className="border border-pj-green px-6 font-bold tracking-widest text-pj-green transition-colors hover:bg-pj-green hover:text-pj-bg disabled:border-pj-faint disabled:text-pj-faint disabled:hover:bg-transparent"
           >

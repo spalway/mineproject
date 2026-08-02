@@ -5,7 +5,7 @@ import * as db from './db'
 import { resolveRound, computeGrades, type MintEvent } from './engine'
 import { riftClaimants, riftComponents } from './rift'
 import { splitPot, feeShare, weightOf, type Spot } from './payout'
-import { tokenBalance, treasuryBalance, TOKEN_MINT, TREASURY_ADDRESS } from './chain'
+import { tokenBalance, treasuryBalance, getTokenMint, getTreasuryAddress } from './chain'
 
 /**
  * Owns the websocket and the round clock. Boots once per server process from
@@ -77,7 +77,7 @@ function handleEvent(e: ParsedEvent): void {
  */
 async function reconcileHoldings(roundId: number): Promise<Spot[]> {
   const spots = db.liveSpots()
-  if (!TOKEN_MINT) return spots
+  if (!getTokenMint()) return spots
 
   const kept: Spot[] = []
   for (const spot of spots) {
@@ -219,6 +219,21 @@ export function startRuntime(): void {
 
   db.getDb()
 
+  /**
+   * Take a baseline treasury reading immediately. Without it the first round
+   * has nothing to measure against and would pay nothing, and the balance
+   * would read "--" until the first close ten minutes later.
+   *
+   * Only set it when absent: on a restart the existing mark must survive, or
+   * fees that accrued while the process was down would be erased.
+   */
+  void treasuryBalance().then((balance) => {
+    if (balance !== null && db.getLastTreasury() === null) {
+      db.setLastTreasury(balance)
+      console.log(`[runtime] treasury baseline ${balance} lamports`)
+    }
+  })
+
   const ingest = new Ingest(handleEvent)
   ingest.start()
 
@@ -288,7 +303,7 @@ export function getState() {
     recentMigrations: db.recentMigrations(10),
     rounds: db.recentRounds(20),
     treasury: {
-      address: TREASURY_ADDRESS,
+      address: getTreasuryAddress(),
       lastSeen: db.getLastTreasury(),
     },
     config: {
@@ -302,7 +317,7 @@ export function getState() {
       poolBps: CONFIG.POOL_BPS,
       depthCap: CONFIG.DEPTH_CAP,
       depthK: CONFIG.DEPTH_K,
-      tokenMint: TOKEN_MINT,
+      tokenMint: getTokenMint(),
     },
     connected: globalRef.__nodeiRuntime?.ingest.connected ?? false,
   }

@@ -91,6 +91,14 @@ CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- Operator-settable values. Reading these at request time is what makes
+-- dropping in the token CA take effect immediately, with no redeploy.
+CREATE TABLE IF NOT EXISTS config (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at INTEGER NOT NULL DEFAULT 0
+);
 `
 
 let handle: DatabaseSync | null = null
@@ -134,6 +142,25 @@ export const getLastTreasury = (): number | null => {
   return v === null ? null : Number(v)
 }
 export const setLastTreasury = (n: number): void => metaSet('last_treasury', String(n))
+
+// ---------------------------------------------------------------- config
+
+export function configGet(key: string): string | null {
+  const r = getDb().prepare('SELECT value FROM config WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined
+  const value = r?.value?.trim()
+  return value ? value : null
+}
+
+export function configSet(key: string, value: string): void {
+  getDb()
+    .prepare(
+      `INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?`,
+    )
+    .run(key, value, Date.now(), value, Date.now())
+}
 
 // ---------------------------------------------------------------- rounds
 

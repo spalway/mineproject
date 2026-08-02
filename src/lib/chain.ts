@@ -1,6 +1,7 @@
 import { Connection, PublicKey, clusterApiUrl } from '@solana/web3.js'
 import nacl from 'tweetnacl'
 import bs58 from 'bs58'
+import { configGet } from './db'
 
 export const NETWORK = (process.env.NETWORK ?? 'devnet') as 'devnet' | 'mainnet'
 
@@ -20,8 +21,23 @@ export function getConnection(): Connection {
   return connection
 }
 
-export const TOKEN_MINT = process.env.NEXT_PUBLIC_TOKEN_MINT ?? ''
-export const TREASURY_ADDRESS = process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? ''
+/**
+ * Config table first, env second. That ordering is what lets the token CA be
+ * dropped in at runtime and take effect on the next request, with no rebuild.
+ */
+export function getTokenMint(): string {
+  const fromDb = configGet('token_mint')
+  if (fromDb && isValidPubkey(fromDb)) return fromDb
+  const fromEnv = (process.env.NEXT_PUBLIC_TOKEN_MINT ?? '').trim()
+  return fromEnv && isValidPubkey(fromEnv) ? fromEnv : ''
+}
+
+export function getTreasuryAddress(): string {
+  const fromDb = configGet('treasury_address')
+  if (fromDb && isValidPubkey(fromDb)) return fromDb
+  const fromEnv = (process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? '').trim()
+  return fromEnv && isValidPubkey(fromEnv) ? fromEnv : ''
+}
 
 /** Proves a wallet controls its key without moving anything. */
 export function verifySignedMessage(
@@ -44,11 +60,12 @@ export function verifySignedMessage(
  * the gate closed rather than open.
  */
 export async function tokenBalance(wallet: string): Promise<number> {
-  if (!TOKEN_MINT) return 0
+  const mint = getTokenMint()
+  if (!mint) return 0
 
   try {
     const res = await getConnection().getParsedTokenAccountsByOwner(new PublicKey(wallet), {
-      mint: new PublicKey(TOKEN_MINT),
+      mint: new PublicKey(mint),
     })
 
     return res.value.reduce((sum, { account }) => {
@@ -62,9 +79,10 @@ export async function tokenBalance(wallet: string): Promise<number> {
 
 /** Lamports currently sitting in the treasury. Null if unreadable. */
 export async function treasuryBalance(): Promise<number | null> {
-  if (!TREASURY_ADDRESS) return null
+  const address = getTreasuryAddress()
+  if (!address) return null
   try {
-    return await getConnection().getBalance(new PublicKey(TREASURY_ADDRESS))
+    return await getConnection().getBalance(new PublicKey(address))
   } catch {
     return null
   }

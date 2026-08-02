@@ -14,7 +14,9 @@ import {
  */
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const endpoint = useMemo(
-    () => process.env.NEXT_PUBLIC_RPC_URL ?? clusterApiUrl('devnet'),
+    () =>
+      process.env.NEXT_PUBLIC_RPC_URL ??
+      clusterApiUrl(process.env.NEXT_PUBLIC_NETWORK === 'mainnet' ? 'mainnet-beta' : 'devnet'),
     [],
   )
 

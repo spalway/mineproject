@@ -1,6 +1,6 @@
 import { CONFIG } from '@/lib/config'
 import { claimMessage } from '@/lib/messages'
-import { isValidPubkey, tokenBalance, verifySignedMessage, TOKEN_MINT } from '@/lib/chain'
+import { isValidPubkey, tokenBalance, verifySignedMessage, getTokenMint } from '@/lib/chain'
 import { claimSpot, consumeNonce, currentRound, sectorTaken, spotByWallet } from '@/lib/db'
 import { bus } from '@/lib/bus'
 
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'nonce is unknown, expired or already used' }, { status: 401 })
   }
 
-  if (!TOKEN_MINT) {
+  if (!getTokenMint()) {
     return Response.json(
       { error: 'token mint is not configured yet, claiming is closed' },
       { status: 503 },

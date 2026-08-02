@@ -149,6 +149,10 @@
      field still reads as a field rather than as blank space. */
   --pj-grid: #5b645e;
   --pj-amber: #ffb000;
+  /* Claimed sectors. Red means "closed, do not bother" — it is a state, not
+     an error, and it is the only place red appears. */
+  --pj-red: #ff4d4d;
+  --pj-red-dim: #7a2b2b;
 
   --background: var(--pj-bg);
   --foreground: var(--pj-green);
@@ -178,6 +182,8 @@
   --color-pj-faint: var(--pj-faint);
   --color-pj-grid: var(--pj-grid);
   --color-pj-amber: var(--pj-amber);
+  --color-pj-red: var(--pj-red);
+  --color-pj-red-dim: var(--pj-red-dim);
   --color-pj-bg: var(--pj-bg);
   --color-pj-panel: var(--pj-panel);
 }

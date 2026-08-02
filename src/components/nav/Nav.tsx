@@ -43,7 +43,7 @@ export function Nav({ live }: { live: boolean }) {
           <span className={live ? 'text-pj-green' : 'text-pj-amber'}>
             {live ? 'feed live' : 'feed down'}
           </span>
-          <span className="pj-dim">devnet</span>
+          <span className="pj-dim">{process.env.NEXT_PUBLIC_NETWORK ?? 'devnet'}</span>
           <ConnectButton />
         </div>
       </div>

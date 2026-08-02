@@ -18,9 +18,9 @@ type Props = {
 }
 
 /**
- * The field. Each cell shows who holds it, its grade this round, and the share
- * of the pool leg that holder earns. Adjacent claimed cells are joined by a
- * fracture bar drawn in the gap — that is a rift.
+ * The field. Open sectors are green and clickable; claimed sectors go red and
+ * read "closed" with the holder's abbreviated wallet. Adjacent claimed cells
+ * are joined by a fracture bar drawn in the gap — that is a rift.
  */
 export function Grid({
   gridSize,
@@ -57,35 +57,41 @@ export function Grid({
           onClick={() => onSelect(idx)}
           title={
             s.claimed
-              ? `sector ${pad(idx)} · held by ${shortKey(s.wallet ?? '')} · depth ${s.depth}`
-              : `sector ${pad(idx)} · open`
+              ? `sector ${pad(idx)} · closed · held by ${s.wallet} · depth ${s.depth}`
+              : `sector ${pad(idx)} · open · click to claim`
           }
           className={[
             'flex flex-col justify-between border p-1 text-left transition-colors',
             dark
               ? 'border-pj-faint text-pj-faint'
-              : mine
-                ? 'border-pj-green bg-pj-green/20'
-                : s.claimed
-                  ? 'border-pj-green/60 bg-pj-green/[0.07]'
-                  : s.grade > 0
-                    ? 'border-pj-faint bg-pj-green/[0.03]'
-                    : 'border-pj-faint',
-            isSelected ? 'outline outline-1 outline-pj-green' : '',
+              : s.claimed
+                ? mine
+                  ? 'border-pj-red bg-pj-red/25'
+                  : 'border-pj-red/70 bg-pj-red/10'
+                : s.grade > 0
+                  ? 'border-pj-faint bg-pj-green/[0.04] hover:border-pj-green'
+                  : 'border-pj-faint hover:border-pj-green',
+            isSelected && !s.claimed ? 'outline outline-1 outline-pj-green' : '',
             isStrike ? 'pj-strike' : '',
             justLanded ? 'pj-land' : '',
-            'hover:border-pj-green',
+            s.claimed ? 'cursor-default' : 'cursor-pointer',
           ].join(' ')}
           style={{ gridRow: 1 + 2 * r, gridColumn: 1 + 2 * c, width: CELL, height: CELL }}
         >
           <div className="flex w-full items-start justify-between leading-none">
-            <span className="text-[10px] text-pj-grid">{pad(idx)}</span>
+            <span className={s.claimed ? 'text-[10px] text-pj-red/70' : 'text-[10px] text-pj-grid'}>
+              {pad(idx)}
+            </span>
             <span
-              className={
-                s.grade > 0
-                  ? 'text-[19px] font-bold leading-none text-pj-green'
-                  : 'text-[19px] leading-none text-pj-grid'
-              }
+              className={[
+                'text-[19px] leading-none',
+                s.grade > 0 ? 'font-bold' : '',
+                s.claimed
+                  ? 'text-pj-red'
+                  : s.grade > 0
+                    ? 'text-pj-green'
+                    : 'text-pj-grid',
+              ].join(' ')}
             >
               {dark ? '-' : s.grade}
             </span>
@@ -94,21 +100,16 @@ export function Grid({
           <div className="w-full space-y-0.5 leading-none">
             {s.claimed ? (
               <>
-                <div
-                  className={
-                    mine
-                      ? 'text-[11px] font-bold text-pj-green'
-                      : 'text-[11px] text-pj-green'
-                  }
-                >
+                <div className="text-[11px] font-bold text-pj-red">closed</div>
+                <div className="truncate text-[10px] text-pj-red/80">
                   {mine ? 'you' : shortKey(s.wallet ?? '', 3)}
-                </div>
-                <div className="text-[10px] text-pj-dim">
-                  {(s.poolShare * 100).toFixed(0)}% · d{s.depth}
                 </div>
               </>
             ) : (
-              <div className="text-[11px] text-pj-grid">open</div>
+              <>
+                <div className="text-[11px] text-pj-grid">open</div>
+                <div className="text-[10px] text-pj-faint">claim</div>
+              </>
             )}
           </div>
         </button>,
@@ -119,7 +120,7 @@ export function Grid({
         children.push(
           <span
             key={`h-${idx}`}
-            className="self-center bg-pj-green/60"
+            className="self-center bg-pj-red/60"
             style={{ gridRow: 1 + 2 * r, gridColumn: 2 + 2 * c, height: 2, width: GAP }}
           />,
         )
@@ -128,7 +129,7 @@ export function Grid({
         children.push(
           <span
             key={`v-${idx}`}
-            className="justify-self-center bg-pj-green/60"
+            className="justify-self-center bg-pj-red/60"
             style={{ gridRow: 2 + 2 * r, gridColumn: 1 + 2 * c, width: 2, height: GAP }}
           />,
         )

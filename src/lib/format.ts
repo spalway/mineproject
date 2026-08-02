@@ -26,6 +26,12 @@ export function solscanUrl(address: string, kind: 'tx' | 'account' = 'account'):
   return `https://solscan.io/${kind}/${address}${cluster}`
 }
 
+export function usd(lamports: number, solPrice: number | null): string | null {
+  if (solPrice === null) return null
+  const value = (lamports / LAMPORTS_PER_SOL) * solPrice
+  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+}
+
 /** weight = balance * (1 + min(depth, cap) / k) */
 export function multiplier(depth: number, cap: number, k: number): number {
   return 1 + Math.min(depth, cap) / k
