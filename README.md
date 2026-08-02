@@ -77,14 +77,20 @@ double-resolve rounds.
 - [ ] `RPC_URL` set to a dedicated endpoint
 - [ ] `NEXT_PUBLIC_TREASURY_ADDRESS` set to the fee-receiving wallet
 - [ ] `NODEI_DB` on a persistent volume
-- [ ] Token deployed, then set `token_mint` in the `config` table — claiming
-      stays closed until it is, and the change applies on the next request with
-      no redeploy
+- [ ] Token deployed, then run `supabase/set-token.sql` with the mint pasted in
+      — one statement. Claiming stays closed until it is set, and the change
+      applies on the next request with no redeploy
 - [ ] `BIRDEYE_API_KEY` if you want the contract bar to show live figures
 
 ## Supabase
 
-`supabase/schema.sql` is the Postgres mirror of the SQLite schema — idempotent,
+Two files:
+
+- **`supabase/schema.sql`** — run once to provision everything.
+- **`supabase/set-token.sql`** — a single statement to drop the contract
+  address in later, so you never have to reopen the schema file.
+
+`schema.sql` is the Postgres mirror of the SQLite schema — idempotent,
 paste into the SQL editor. It provisions the tables, partial unique indexes
 enforcing one live sector per wallet and per sector, RLS (public read on
 everything auditable, service-role for writes), helper views, and a CHECK

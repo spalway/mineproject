@@ -18,6 +18,9 @@ create extension if not exists pgcrypto;
 --
 -- This is the table to touch. Dropping the token CA in here takes effect on
 -- the next request, with no redeploy and no restart.
+--
+-- To set the CA later, run supabase/set-token.sql — it is one statement, so
+-- you do not have to come back into this file.
 -- ---------------------------------------------------------------------
 create table if not exists public.config (
   key        text primary key,
