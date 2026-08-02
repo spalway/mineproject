@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ConnectButton } from '@/components/wallet/ConnectButton'
-import { PixelBird } from '@/components/shared/PixelBird'
 import { PixelDoc } from '@/components/shared/PixelDoc'
 
 const TWITTER_HANDLE = process.env.NEXT_PUBLIC_TWITTER_HANDLE ?? 'nodeimines'
@@ -14,6 +13,7 @@ const LINKS = [
   { href: '/history', label: 'history' },
   { href: '/position', label: 'position' },
   { href: '/mechanics', label: 'mechanics' },
+  { href: TWITTER_URL, label: 'twitter', external: true },
 ]
 
 export function Nav() {
@@ -29,17 +29,29 @@ export function Nav() {
         <span className="text-pj-faint">|</span>
 
         <nav className="flex gap-4">
-          {LINKS.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={
-                pathname === l.href ? 'font-bold text-pj-green' : 'pj-dim hover:text-pj-green'
-              }
-            >
-              {l.label}
-            </Link>
-          ))}
+          {LINKS.map((l) =>
+            l.external ? (
+              <a
+                key={l.href}
+                href={l.href}
+                target="_blank"
+                rel="noreferrer"
+                className="pj-dim hover:text-pj-green"
+              >
+                {l.label}
+              </a>
+            ) : (
+              <Link
+                key={l.href}
+                href={l.href}
+                className={
+                  pathname === l.href ? 'font-bold text-pj-green' : 'pj-dim hover:text-pj-green'
+                }
+              >
+                {l.label}
+              </Link>
+            ),
+          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
@@ -55,17 +67,6 @@ export function Nav() {
           >
             <PixelDoc />
           </Link>
-
-          <a
-            href={TWITTER_URL}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`nodei on X, @${TWITTER_HANDLE}`}
-            className="flex items-center gap-2 border border-pj-faint px-3 py-1 text-pj-green transition-colors hover:border-pj-green hover:bg-pj-green/10"
-          >
-            <PixelBird />
-            <span className="font-bold">@{TWITTER_HANDLE}</span>
-          </a>
 
           <ConnectButton />
         </div>

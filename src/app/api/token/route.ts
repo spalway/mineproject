@@ -6,11 +6,11 @@ export const runtime = 'nodejs'
 
 /**
  * Display-only token figures. Returns nulls rather than guesses when the mint
- * is unset or Birdeye is unconfigured, so the UI shows a dash instead of a
- * fabricated number.
+ * is unset or Birdeye is unconfigured, so the UI can omit a field instead of
+ * showing a fabricated number.
  */
 export async function GET() {
-  const mint = getTokenMint()
+  const mint = await getTokenMint()
   const [stats, sol] = await Promise.all([tokenOverview(mint), solUsd()])
 
   return Response.json({

@@ -1,7 +1,7 @@
 import { CONFIG } from '@/lib/config'
 import { claimMessage } from '@/lib/messages'
 import { isValidPubkey, tokenBalance, verifySignedMessage, getTokenMint } from '@/lib/chain'
-import { claimSpot, consumeNonce, currentRound, sectorTaken, spotByWallet } from '@/lib/db'
+import { getStore } from '@/lib/store'
 import { bus } from '@/lib/bus'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +13,8 @@ export const runtime = 'nodejs'
  * from chain — the client never tells us what it holds.
  */
 export async function POST(req: Request) {
+  const store = getStore()
+
   let body: Record<string, unknown>
   try {
     body = await req.json()
@@ -42,11 +44,15 @@ export async function POST(req: Request) {
   if (!verifySignedMessage(wallet, claimMessage(sector, nonce), signature)) {
     return Response.json({ error: 'signature does not match this wallet' }, { status: 401 })
   }
-  if (!consumeNonce(wallet, nonce)) {
+  if (!(await store.consumeNonce(wallet, nonce))) {
     return Response.json({ error: 'nonce is unknown, expired or already used' }, { status: 401 })
   }
 
-  if (!getTokenMint()) {
+  if ((await store.configGet('claims_open')) === 'false') {
+    return Response.json({ error: 'claiming is closed' }, { status: 503 })
+  }
+
+  if (!(await getTokenMint())) {
     return Response.json(
       { error: 'token mint is not configured yet, claiming is closed' },
       { status: 503 },
@@ -65,21 +71,21 @@ export async function POST(req: Request) {
     )
   }
 
-  if (spotByWallet(wallet)) {
+  if (await store.spotByWallet(wallet)) {
     return Response.json({ error: 'this wallet already holds a spot' }, { status: 409 })
   }
-  if (sectorTaken(sector)) {
+  if (await store.sectorTaken(sector)) {
     return Response.json({ error: 'that sector is already taken' }, { status: 409 })
   }
 
-  const round = currentRound()
+  const round = await store.currentRound()
   if (!round) {
     return Response.json({ error: 'field is not open yet' }, { status: 503 })
   }
 
   let spotId: number
   try {
-    spotId = claimSpot({ wallet, sector, tokens, round: round.id })
+    spotId = await store.claimSpot({ wallet, sector, tokens, round: round.id })
   } catch {
     // Unique index lost a race with a concurrent claim.
     return Response.json({ error: 'that sector was just taken' }, { status: 409 })

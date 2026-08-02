@@ -1,4 +1,4 @@
-import { getRound, roundPayouts, spotsDuringRound } from '@/lib/db'
+import { getStore } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -8,6 +8,7 @@ export const runtime = 'nodejs'
  * each wallet was allocated, ranked by share of the pot.
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const store = getStore()
   const { id } = await ctx.params
   const roundId = Number(id)
 
@@ -15,11 +16,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return Response.json({ error: 'bad round id' }, { status: 400 })
   }
 
-  const round = getRound(roundId)
+  const round = await store.getRound(roundId)
   if (!round) return Response.json({ error: 'no such round' }, { status: 404 })
 
-  const board = spotsDuringRound(roundId)
-  const payouts = roundPayouts(roundId)
+  const [board, payouts] = await Promise.all([
+    store.spotsDuringRound(roundId),
+    store.roundPayouts(roundId),
+  ])
   const sectorBySpot = new Map(board.map((s) => [s.id, s.sector]))
 
   const grouped = new Map<

@@ -1,7 +1,8 @@
 import { CONFIG } from './config'
 import { bus } from './bus'
 import { Ingest, type ParsedEvent } from './ingest'
-import * as db from './db'
+import { getStore } from './store'
+import type { MintRow } from './store/types'
 import { resolveRound, computeGrades, type MintEvent } from './engine'
 import { riftClaimants, riftComponents } from './rift'
 import { splitPot, feeShare, weightOf, type Spot } from './payout'
@@ -13,7 +14,7 @@ import { tokenBalance, treasuryBalance, getTokenMint, getTreasuryAddress } from 
  *
  * There is no payout loop, because the server cannot move funds. Rounds
  * compute what each wallet is OWED and write it to a public ledger, and
- * settlement is done by hand.
+ * settlement is done separately.
  */
 
 const TICK_INTERVAL_MS = 2_000
@@ -25,7 +26,7 @@ type Runtime = {
 
 const globalRef = globalThis as unknown as { __nodeiRuntime?: Runtime }
 
-const toMintEvent = (r: db.MintRow): MintEvent => ({
+const toMintEvent = (r: MintRow): MintEvent => ({
   mint: r.mint,
   sector: r.sector,
   creator: r.creator ?? '',
@@ -34,14 +35,15 @@ const toMintEvent = (r: db.MintRow): MintEvent => ({
 
 // ------------------------------------------------------------------ feed
 
-function handleEvent(e: ParsedEvent): void {
-  const round = db.currentRound()
+async function handleEvent(e: ParsedEvent): Promise<void> {
+  const store = getStore()
+  const round = await store.currentRound()
   if (!round) return
 
   const at = Date.now()
 
   if (e.kind === 'mint') {
-    db.insertMint({
+    await store.insertMint({
       mint: e.mint,
       sector: e.sector,
       roundId: round.id,
@@ -60,11 +62,16 @@ function handleEvent(e: ParsedEvent): void {
       at,
     })
   } else {
-    db.insertMigration({ mint: e.mint, sector: e.sector, roundId: round.id, receivedAt: at })
+    await store.insertMigration({
+      mint: e.mint,
+      sector: e.sector,
+      roundId: round.id,
+      receivedAt: at,
+    })
     bus.publish({ type: 'migration', mint: e.mint, sector: e.sector, at })
   }
 
-  const { grades } = computeGrades(db.roundMints(round.id).map(toMintEvent))
+  const { grades } = computeGrades((await store.roundMints(round.id)).map(toMintEvent))
   bus.publish({ type: 'grade', grades })
 }
 
@@ -76,16 +83,17 @@ function handleEvent(e: ParsedEvent): void {
  * time, because chain state is only read on the boundary.
  */
 async function reconcileHoldings(roundId: number): Promise<Spot[]> {
-  const spots = db.liveSpots()
-  if (!getTokenMint()) return spots
+  const store = getStore()
+  const spots = await store.liveSpots()
+  if (!(await getTokenMint())) return spots
 
   const kept: Spot[] = []
   for (const spot of spots) {
     const tokens = await tokenBalance(spot.wallet)
-    db.setSpotTokens(spot.id, tokens)
+    await store.setSpotTokens(spot.id, tokens)
 
     if (tokens < CONFIG.MIN_TOKEN_BALANCE) {
-      db.releaseSpot(spot.id, roundId, 'below minimum balance')
+      await store.releaseSpot(spot.id, roundId, 'below minimum balance')
       bus.publish({ type: 'release', wallet: spot.wallet, sector: spot.sector })
     } else {
       kept.push({ ...spot, tokens })
@@ -103,43 +111,64 @@ export async function tick(
   uptimeRatio: number,
   treasury: number | null,
 ): Promise<void> {
-  const round = db.currentRound()
+  const store = getStore()
+  const round = await store.currentRound()
 
   if (!round) {
-    const id = db.openRound(now)
+    const id = await store.openRound(now)
     bus.publish({ type: 'tick', roundId: id, startedAt: now, endsAt: now + CONFIG.ROUND_MS })
+    return
+  }
+
+  /**
+   * When the token goes live mid-round, restart the clock so the first
+   * claimable round runs its full length. Without this the CA could land with
+   * seconds left and the opening round would close before anyone could claim.
+   */
+  const mint = await getTokenMint()
+  const seen = await store.metaGet('last_seen_mint')
+  if (mint && mint !== seen) {
+    await store.metaSet('last_seen_mint', mint)
+    await store.resetRoundStart(round.id, now)
+    bus.publish({
+      type: 'tick',
+      roundId: round.id,
+      startedAt: now,
+      endsAt: now + CONFIG.ROUND_MS,
+    })
+    console.log(`[runtime] token live, round ${round.id} restarted at full length`)
     return
   }
 
   if (now < round.started_at + CONFIG.ROUND_MS) return
 
-  const mintRows = db.roundMints(round.id)
+  const mintRows = await store.roundMints(round.id)
   const result = resolveRound({
     mints: mintRows.map(toMintEvent),
-    migrations: db.roundMigrations(round.id),
+    migrations: await store.roundMigrations(round.id),
     uptimeRatio,
   })
 
   const countedSet = new Set(result.countedMints.map((m) => m.mint))
-  db.markUncounted(mintRows.filter((m) => !countedSet.has(m.mint)).map((m) => m.mint))
+  await store.markUncounted(mintRows.filter((m) => !countedSet.has(m.mint)).map((m) => m.mint))
 
   const spots = await reconcileHoldings(round.id)
 
   // Fees accrued since the last close. A withdrawal makes the delta negative,
   // in which case the round simply has no new fees rather than a negative pot.
-  const last = db.getLastTreasury()
+  const last = await store.getLastTreasury()
   const accrued = treasury !== null && last !== null ? Math.max(0, treasury - last) : 0
-  if (treasury !== null) db.setLastTreasury(treasury)
+  if (treasury !== null) await store.setLastTreasury(treasury)
 
-  const carried = db.getCarried()
+  const carried = await store.getCarried()
   const pot = feeShare(accrued) + carried
 
   if (result.status === 'void') {
     // Nothing distributed and nothing lost: the pot rolls forward whole and
     // depth still accrues. We never invent data to cover a feed gap.
-    db.bumpDepth(spots.map((s) => s.id))
-    db.setCarried(pot)
-    db.closeRound(round.id, {
+    await store.bumpDepth(spots.map((s) => s.id))
+    await store.setCarried(pot)
+    await store.closeRound(round.id, {
       endedAt: now,
       status: 'void',
       strikeSector: null,
@@ -152,11 +181,11 @@ export async function tick(
       uptimeRatio,
     })
     bus.publish({ type: 'void', roundId: round.id, uptimeRatio })
-    openNext(now)
+    await openNext(now)
     return
   }
 
-  const occupied = db.occupiedSectors()
+  const occupied = await store.occupiedSectors()
   const strike = result.strikeSector
 
   const strikers = strike === null ? [] : spots.filter((s) => s.sector === strike)
@@ -174,14 +203,20 @@ export async function tick(
       if (lamports <= 0) continue
       const spot = spots.find((s) => s.id === spotId)
       if (!spot) continue
-      db.recordPayout({ roundId: round.id, wallet: spot.wallet, spotId, kind, lamports })
+      await store.recordPayout({
+        roundId: round.id,
+        wallet: spot.wallet,
+        spotId,
+        kind,
+        lamports,
+      })
     }
   }
 
-  db.setCarried(alloc.carried)
-  db.bumpDepth(spots.map((s) => s.id))
+  await store.setCarried(alloc.carried)
+  await store.bumpDepth(spots.map((s) => s.id))
 
-  db.closeRound(round.id, {
+  await store.closeRound(round.id, {
     endedAt: now,
     status: 'resolved',
     strikeSector: strike,
@@ -203,11 +238,11 @@ export async function tick(
   })
   bus.publish({ type: 'rift', components: riftComponents(occupied) })
 
-  openNext(now)
+  await openNext(now)
 }
 
-function openNext(now: number): void {
-  const id = db.openRound(now)
+async function openNext(now: number): Promise<void> {
+  const id = await getStore().openRound(now)
   bus.publish({ type: 'tick', roundId: id, startedAt: now, endsAt: now + CONFIG.ROUND_MS })
   bus.publish({ type: 'grade', grades: new Array(CONFIG.SECTOR_COUNT).fill(0) })
 }
@@ -217,24 +252,32 @@ function openNext(now: number): void {
 export function startRuntime(): void {
   if (globalRef.__nodeiRuntime) return
 
-  db.getDb()
+  const store = getStore()
 
-  /**
-   * Take a baseline treasury reading immediately. Without it the first round
-   * has nothing to measure against and would pay nothing, and the balance
-   * would read "--" until the first close ten minutes later.
-   *
-   * Only set it when absent: on a restart the existing mark must survive, or
-   * fees that accrued while the process was down would be erased.
-   */
-  void treasuryBalance().then((balance) => {
-    if (balance !== null && db.getLastTreasury() === null) {
-      db.setLastTreasury(balance)
-      console.log(`[runtime] treasury baseline ${balance} lamports`)
-    }
+  void store
+    .ready()
+    .then(async () => {
+      /**
+       * Take a baseline treasury reading immediately. Without it the first
+       * round has nothing to measure against and would pay nothing, and the
+       * balance would read blank until the first close.
+       *
+       * Only set it when absent: on a restart the existing mark must survive,
+       * or fees that accrued while the process was down would be erased.
+       */
+      const balance = await treasuryBalance()
+      if (balance !== null && (await store.getLastTreasury()) === null) {
+        await store.setLastTreasury(balance)
+        console.log(`[runtime] treasury baseline ${balance} lamports`)
+      }
+    })
+    .catch((err) => console.error('[runtime] store init failed:', (err as Error).message))
+
+  const ingest = new Ingest((e) => {
+    void handleEvent(e).catch((err) =>
+      console.error('[runtime] event failed:', (err as Error).message),
+    )
   })
-
-  const ingest = new Ingest(handleEvent)
   ingest.start()
 
   let ticking = false
@@ -242,33 +285,39 @@ export function startRuntime(): void {
     if (ticking) return
     ticking = true
 
-    const now = Date.now()
-    const round = db.currentRound()
-    const since = round?.started_at ?? now
+    void (async () => {
+      try {
+        const now = Date.now()
+        const round = await store.currentRound()
+        const since = round?.started_at ?? now
 
-    // Only spend an RPC read when a round is actually due to close.
-    const due = round !== undefined && now >= round.started_at + CONFIG.ROUND_MS
+        // Only spend an RPC read when a round is actually due to close.
+        const due = round !== undefined && now >= round.started_at + CONFIG.ROUND_MS
+        const treasury = due ? await treasuryBalance() : null
 
-    void (due ? treasuryBalance() : Promise.resolve(null))
-      .then((treasury) => tick(now, ingest.uptimeRatio(since, now), treasury))
-      .catch((err) => console.error('[runtime] tick failed:', (err as Error).message))
-      .finally(() => {
+        await tick(now, ingest.uptimeRatio(since, now), treasury)
+      } catch (err) {
+        console.error('[runtime] tick failed:', (err as Error).message)
+      } finally {
         ticking = false
-      })
+      }
+    })()
   }, TICK_INTERVAL_MS)
 
   globalRef.__nodeiRuntime = { ingest, tickTimer }
-  console.log('[runtime] nodei online')
+  console.log(`[runtime] nodei online (${store.kind})`)
 }
 
 // ------------------------------------------------------------------ read
 
-export function getState() {
-  const round = db.currentRound()
-  const mints = round ? db.roundMints(round.id) : []
+export async function getState() {
+  const store = getStore()
+
+  const round = await store.currentRound()
+  const mints = round ? await store.roundMints(round.id) : []
   const { grades } = computeGrades(mints.map(toMintEvent))
-  const occupied = db.occupiedSectors()
-  const spots = db.liveSpots()
+  const occupied = await store.occupiedSectors()
+  const spots = await store.liveSpots()
 
   const totalWeight = spots.reduce((sum, s) => sum + weightOf(s), 0)
 
@@ -286,6 +335,18 @@ export function getState() {
     }
   })
 
+  const [carried, owed, paid, leaderboard, recentMints, recentMigrations, rounds, lastSeen] =
+    await Promise.all([
+      store.getCarried(),
+      store.totalOwed(),
+      store.totalPaid(),
+      store.owedByWallet(),
+      store.recentMints(40),
+      store.recentMigrations(10),
+      store.recentRounds(20),
+      store.getLastTreasury(),
+    ])
+
   return {
     sectors,
     round: round
@@ -295,16 +356,16 @@ export function getState() {
     occupied: [...occupied],
     rifts: riftComponents(occupied),
     spots,
-    carried: db.getCarried(),
-    owed: db.totalOwed(),
-    paid: db.totalPaid(),
-    leaderboard: db.owedByWallet().slice(0, 20),
-    recentMints: db.recentMints(40),
-    recentMigrations: db.recentMigrations(10),
-    rounds: db.recentRounds(20),
+    carried,
+    owed,
+    paid,
+    leaderboard: leaderboard.slice(0, 20),
+    recentMints,
+    recentMigrations,
+    rounds,
     treasury: {
-      address: getTreasuryAddress(),
-      lastSeen: db.getLastTreasury(),
+      address: await getTreasuryAddress(),
+      lastSeen,
     },
     config: {
       gridSize: CONFIG.GRID_SIZE,
@@ -317,10 +378,11 @@ export function getState() {
       poolBps: CONFIG.POOL_BPS,
       depthCap: CONFIG.DEPTH_CAP,
       depthK: CONFIG.DEPTH_K,
-      tokenMint: getTokenMint(),
+      tokenMint: await getTokenMint(),
     },
+    storage: store.kind,
     connected: globalRef.__nodeiRuntime?.ingest.connected ?? false,
   }
 }
 
-export type NodeiState = ReturnType<typeof getState>
+export type NodeiState = Awaited<ReturnType<typeof getState>>

@@ -1,6 +1,6 @@
 import { releaseMessage } from '@/lib/messages'
 import { verifySignedMessage } from '@/lib/chain'
-import { consumeNonce, currentRound, getSpot, releaseSpot } from '@/lib/db'
+import { getStore } from '@/lib/store'
 import { bus } from '@/lib/bus'
 
 export const dynamic = 'force-dynamic'
@@ -11,6 +11,8 @@ export const runtime = 'nodejs'
  * releasing forfeits depth, not earnings.
  */
 export async function POST(req: Request) {
+  const store = getStore()
+
   let body: Record<string, unknown>
   try {
     body = await req.json()
@@ -33,11 +35,11 @@ export async function POST(req: Request) {
   if (!verifySignedMessage(wallet, releaseMessage(spotId, nonce), signature)) {
     return Response.json({ error: 'signature does not match this wallet' }, { status: 401 })
   }
-  if (!consumeNonce(wallet, nonce)) {
+  if (!(await store.consumeNonce(wallet, nonce))) {
     return Response.json({ error: 'nonce is unknown, expired or already used' }, { status: 401 })
   }
 
-  const spot = getSpot(spotId)
+  const spot = await store.getSpot(spotId)
   if (!spot) return Response.json({ error: 'no such spot' }, { status: 404 })
   if (spot.wallet !== wallet) {
     return Response.json({ error: 'that spot belongs to another wallet' }, { status: 403 })
@@ -46,8 +48,8 @@ export async function POST(req: Request) {
     return Response.json({ error: 'spot is already released' }, { status: 409 })
   }
 
-  const round = currentRound()
-  releaseSpot(spotId, round?.id ?? 0, 'released by holder')
+  const round = await store.currentRound()
+  await store.releaseSpot(spotId, round?.id ?? 0, 'released by holder')
   bus.publish({ type: 'release', wallet, sector: spot.sector })
 
   return Response.json({ ok: true, spotId, depthLost: spot.depth })

@@ -1,7 +1,7 @@
 import { Connection, PublicKey, clusterApiUrl } from '@solana/web3.js'
 import nacl from 'tweetnacl'
 import bs58 from 'bs58'
-import { configGet } from './db'
+import { getStore } from './store'
 
 export const NETWORK = (process.env.NETWORK ?? 'devnet') as 'devnet' | 'mainnet'
 
@@ -25,18 +25,24 @@ export function getConnection(): Connection {
  * Config table first, env second. That ordering is what lets the token CA be
  * dropped in at runtime and take effect on the next request, with no rebuild.
  */
-export function getTokenMint(): string {
-  const fromDb = configGet('token_mint')
-  if (fromDb && isValidPubkey(fromDb)) return fromDb
-  const fromEnv = (process.env.NEXT_PUBLIC_TOKEN_MINT ?? '').trim()
+async function fromConfigOrEnv(key: string, envVar: string | undefined): Promise<string> {
+  try {
+    const fromDb = await getStore().configGet(key)
+    if (fromDb && isValidPubkey(fromDb)) return fromDb
+  } catch {
+    // Config unreadable is not fatal: fall through to the env value rather
+    // than taking the whole page down.
+  }
+  const fromEnv = (envVar ?? '').trim()
   return fromEnv && isValidPubkey(fromEnv) ? fromEnv : ''
 }
 
-export function getTreasuryAddress(): string {
-  const fromDb = configGet('treasury_address')
-  if (fromDb && isValidPubkey(fromDb)) return fromDb
-  const fromEnv = (process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? '').trim()
-  return fromEnv && isValidPubkey(fromEnv) ? fromEnv : ''
+export function getTokenMint(): Promise<string> {
+  return fromConfigOrEnv('token_mint', process.env.NEXT_PUBLIC_TOKEN_MINT)
+}
+
+export function getTreasuryAddress(): Promise<string> {
+  return fromConfigOrEnv('treasury_address', process.env.NEXT_PUBLIC_TREASURY_ADDRESS)
 }
 
 /** Proves a wallet controls its key without moving anything. */
@@ -60,7 +66,7 @@ export function verifySignedMessage(
  * the gate closed rather than open.
  */
 export async function tokenBalance(wallet: string): Promise<number> {
-  const mint = getTokenMint()
+  const mint = await getTokenMint()
   if (!mint) return 0
 
   try {
@@ -79,7 +85,7 @@ export async function tokenBalance(wallet: string): Promise<number> {
 
 /** Lamports currently sitting in the treasury. Null if unreadable. */
 export async function treasuryBalance(): Promise<number | null> {
-  const address = getTreasuryAddress()
+  const address = await getTreasuryAddress()
   if (!address) return null
   try {
     return await getConnection().getBalance(new PublicKey(address))

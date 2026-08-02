@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { tick } from '@/lib/runtime'
 import { CONFIG } from '@/lib/config'
+import { Keypair } from '@solana/web3.js'
+import { useMemoryStore } from '@/lib/store'
 import {
-  getDb,
+  configSet,
   currentRound,
   claimSpot,
   liveSpots,
@@ -19,7 +21,7 @@ const R1 = T0 + CONFIG.ROUND_MS
 const R2 = R1 + CONFIG.ROUND_MS
 
 beforeEach(() => {
-  getDb(':memory:', { reset: true })
+  useMemoryStore()
 })
 
 /** Open round 1 and return its id. */
@@ -149,6 +151,36 @@ describe('tick', () => {
     await tick(R2 + CONFIG.ROUND_MS, 1, 1_000_000_001)
 
     expect(recentRounds()[0].pot_lamports).toBe(carriedAfterR2)
+  })
+
+  it('restarts the round at full length when the token goes live', async () => {
+    const r1 = await boot()
+    const mint = Keypair.generate().publicKey.toBase58()
+
+    // CA lands halfway through a round.
+    configSet('token_mint', mint)
+    const halfway = T0 + CONFIG.ROUND_MS / 2
+    await tick(halfway, 1, null)
+
+    // Same round, but its clock now starts from the moment the token went
+    // live, so claimers get a full round rather than the tail of one.
+    const round = currentRound()!
+    expect(round.id).toBe(r1)
+    expect(round.started_at).toBe(halfway)
+  })
+
+  it('only restarts once for a given mint', async () => {
+    await boot()
+    const mint = Keypair.generate().publicKey.toBase58()
+    configSet('token_mint', mint)
+
+    const first = T0 + 1_000
+    await tick(first, 1, null)
+    expect(currentRound()!.started_at).toBe(first)
+
+    // A later tick with the same mint must not keep pushing the clock out.
+    await tick(first + 5_000, 1, null)
+    expect(currentRound()!.started_at).toBe(first)
   })
 
   it('never records a payout as already paid', async () => {

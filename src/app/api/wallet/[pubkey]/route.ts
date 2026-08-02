@@ -1,4 +1,4 @@
-import { spotByWallet, walletPayouts } from '@/lib/db'
+import { getStore } from '@/lib/store'
 import { weightOf } from '@/lib/payout'
 import { tokenBalance, isValidPubkey } from '@/lib/chain'
 import { CONFIG } from '@/lib/config'
@@ -7,15 +7,18 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function GET(_req: Request, ctx: { params: Promise<{ pubkey: string }> }) {
+  const store = getStore()
   const { pubkey } = await ctx.params
 
   if (!isValidPubkey(pubkey)) {
     return Response.json({ error: 'not a valid wallet address' }, { status: 400 })
   }
 
-  const spot = spotByWallet(pubkey)
-  const payouts = walletPayouts(pubkey)
-  const tokens = await tokenBalance(pubkey)
+  const [spot, payouts, tokens] = await Promise.all([
+    store.spotByWallet(pubkey),
+    store.walletPayouts(pubkey),
+    tokenBalance(pubkey),
+  ])
 
   const owed = payouts
     .filter((p) => p.status === 'owed')

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { issueNonce } from '@/lib/db'
+import { getStore } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   }
 
   const nonce = randomBytes(16).toString('hex')
-  issueNonce(wallet, nonce)
+  await getStore().issueNonce(wallet, nonce)
 
   return Response.json({ nonce })
 }

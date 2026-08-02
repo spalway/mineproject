@@ -252,6 +252,15 @@ export function spotsDuringRound(roundId: number): {
     .all(roundId, roundId) as { id: number; wallet: string; sector: number }[]
 }
 
+/**
+ * Push the open round's start forward. Used when the token goes live so the
+ * first claimable round runs its full length instead of whatever was left of
+ * the one already in flight.
+ */
+export function resetRoundStart(id: number, startedAt: number): void {
+  getDb().prepare('UPDATE rounds SET started_at = ? WHERE id = ?').run(startedAt, id)
+}
+
 export function recentRounds(limit = 30): RoundRow[] {
   return getDb()
     .prepare(`SELECT * FROM rounds WHERE status != 'open' ORDER BY id DESC LIMIT ?`)
