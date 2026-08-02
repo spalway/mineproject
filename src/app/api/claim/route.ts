@@ -60,6 +60,16 @@ export async function POST(req: Request) {
   }
 
   const tokens = await tokenBalance(wallet)
+
+  // Could not read the balance. Say so, rather than telling someone they hold
+  // too little when we simply do not know.
+  if (tokens === null) {
+    return Response.json(
+      { error: 'could not read your token balance right now, try again in a moment' },
+      { status: 503 },
+    )
+  }
+
   if (tokens < CONFIG.MIN_TOKEN_BALANCE) {
     return Response.json(
       {

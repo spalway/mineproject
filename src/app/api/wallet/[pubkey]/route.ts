@@ -29,8 +29,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pubkey: string
 
   return Response.json({
     wallet: pubkey,
-    tokens,
-    eligible: tokens >= CONFIG.MIN_TOKEN_BALANCE,
+    // null means the balance could not be read, not that it is zero.
+    tokens: tokens ?? 0,
+    balanceUnavailable: tokens === null,
+    eligible: tokens !== null && tokens >= CONFIG.MIN_TOKEN_BALANCE,
     required: CONFIG.MIN_TOKEN_BALANCE,
     spot: spot ? { ...spot, weight: weightOf(spot) } : null,
     owed,

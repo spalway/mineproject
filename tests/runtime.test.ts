@@ -153,6 +153,22 @@ describe('tick', () => {
     expect(recentRounds()[0].pot_lamports).toBe(carriedAfterR2)
   })
 
+  it('keeps every spot when the balance read fails', async () => {
+    const r1 = await boot()
+    claimSpot({ wallet: 'w1', sector: 5, tokens: 12_000, round: r1 })
+    claimSpot({ wallet: 'w2', sector: 9, tokens: 12_000, round: r1 })
+
+    // A mint is configured but no RPC is reachable in tests, so every balance
+    // read fails. Nobody may be evicted for that.
+    configSet('token_mint', Keypair.generate().publicKey.toBase58())
+    seedMint(r1, 5, T0 + 10, 'a')
+
+    await tick(R1, 1, null)
+
+    expect(liveSpots()).toHaveLength(2)
+    expect(liveSpots().map((s) => s.wallet).sort()).toEqual(['w1', 'w2'])
+  }, 30_000)
+
   it('restarts the round at full length when the token goes live', async () => {
     const r1 = await boot()
     const mint = Keypair.generate().publicKey.toBase58()

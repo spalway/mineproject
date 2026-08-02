@@ -90,6 +90,15 @@ async function reconcileHoldings(roundId: number): Promise<Spot[]> {
   const kept: Spot[] = []
   for (const spot of spots) {
     const tokens = await tokenBalance(spot.wallet)
+
+    // A failed read is not a zero balance. Keep the spot and try again next
+    // round rather than evicting someone over an RPC hiccup — the cost of
+    // being wrong here is taking a sector off a holder who did nothing.
+    if (tokens === null) {
+      kept.push(spot)
+      continue
+    }
+
     await store.setSpotTokens(spot.id, tokens)
 
     if (tokens < CONFIG.MIN_TOKEN_BALANCE) {

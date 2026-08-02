@@ -33,6 +33,25 @@ function must<T>(res: { data: T; error: { message: string } | null }, what: stri
   return res.data
 }
 
+/**
+ * True when PostgREST reports the function does not exist, which happens if
+ * the project was provisioned before rpcs.sql was added. Every RPC below has
+ * a plain-query fallback for exactly this case — a partially migrated schema
+ * should run slower, not take the site down.
+ */
+function isMissingFunction(message: string): boolean {
+  return /could not find the function/i.test(message)
+}
+
+let warnedMissingRpc = false
+function warnOnce(fn: string) {
+  if (warnedMissingRpc) return
+  warnedMissingRpc = true
+  console.warn(
+    `[store] ${fn} is missing; using a slower fallback. Run supabase/rpcs.sql to restore it.`,
+  )
+}
+
 const toSpot = (r: {
   id: number
   wallet: string
@@ -49,6 +68,33 @@ const toSpot = (r: {
 
 export function createSupabaseStore(): Store {
   const db = client()
+
+  /** Sum the ledger client-side when nodei_totals is unavailable. */
+  async function totalsFallback(): Promise<{ owed: number; paid: number }> {
+    const { data, error } = await db.from('payouts').select('status, lamports')
+    if (error) throw new Error(`totals fallback: ${error.message}`)
+
+    let owed = 0
+    let paid = 0
+    for (const row of data ?? []) {
+      if (row.status === 'owed') owed += Number(row.lamports)
+      else if (row.status === 'paid') paid += Number(row.lamports)
+    }
+    return { owed, paid }
+  }
+
+  async function totals(): Promise<{ owed: number; paid: number }> {
+    const { data, error } = await db.rpc('nodei_totals')
+    if (error) {
+      if (!isMissingFunction(error.message)) throw new Error(`totals: ${error.message}`)
+      warnOnce('nodei_totals')
+      return totalsFallback()
+    }
+    return {
+      owed: Number(data?.[0]?.owed ?? 0),
+      paid: Number(data?.[0]?.paid ?? 0),
+    }
+  }
 
   return {
     kind: 'supabase',
@@ -272,8 +318,26 @@ export function createSupabaseStore(): Store {
         p_tokens: s.tokens,
         p_round: s.round,
       })
-      if (error) throw new Error(`claimSpot: ${error.message}`)
-      return Number(data)
+      if (!error) return Number(data)
+      if (!isMissingFunction(error.message)) throw new Error(`claimSpot: ${error.message}`)
+      warnOnce('nodei_claim_spot')
+
+      // Plain insert. Still safe: the partial unique indexes are what actually
+      // prevent a double claim, and a loser gets a constraint error either way.
+      const { data: row, error: insertErr } = await db
+        .from('spots')
+        .insert({
+          wallet: s.wallet,
+          sector: s.sector,
+          tokens: s.tokens,
+          claimed_round: s.round,
+        })
+        .select('id')
+        .single()
+      if (insertErr || !row) {
+        throw new Error(`claimSpot: ${insertErr?.message ?? 'no row returned'}`)
+      }
+      return Number(row.id)
     },
 
     async releaseSpot(id, round, reason) {
@@ -325,8 +389,29 @@ export function createSupabaseStore(): Store {
 
     async bumpDepth(ids) {
       if (ids.length === 0) return
+
       const { error } = await db.rpc('nodei_bump_depth', { p_ids: ids })
-      if (error) throw new Error(`bumpDepth: ${error.message}`)
+      if (!error) return
+      if (!isMissingFunction(error.message)) throw new Error(`bumpDepth: ${error.message}`)
+      warnOnce('nodei_bump_depth')
+
+      // Read the current depths and write them back incremented. PostgREST
+      // cannot express `depth = depth + 1`, and an upsert would violate the
+      // NOT NULL columns it does not carry, so this is one update per spot.
+      const { data, error: readErr } = await db
+        .from('spots')
+        .select('id, depth')
+        .in('id', ids)
+      if (readErr) throw new Error(`bumpDepth read: ${readErr.message}`)
+
+      await Promise.all(
+        (data ?? []).map((row) =>
+          db
+            .from('spots')
+            .update({ depth: Number(row.depth) + 1 })
+            .eq('id', row.id),
+        ),
+      )
     },
 
     async setSpotTokens(id, tokens) {
@@ -402,15 +487,11 @@ export function createSupabaseStore(): Store {
     },
 
     async totalOwed() {
-      const { data, error } = await db.rpc('nodei_totals')
-      if (error) throw new Error(`totalOwed: ${error.message}`)
-      return Number(data?.[0]?.owed ?? 0)
+      return (await totals()).owed
     },
 
     async totalPaid() {
-      const { data, error } = await db.rpc('nodei_totals')
-      if (error) throw new Error(`totalPaid: ${error.message}`)
-      return Number(data?.[0]?.paid ?? 0)
+      return (await totals()).paid
     },
 
     // ------------------------------------------------------------- nonces

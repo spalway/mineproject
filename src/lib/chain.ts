@@ -62,10 +62,17 @@ export function verifySignedMessage(
 
 /**
  * Whole-token balance of TOKEN_MINT held by `wallet`, summed across every
- * token account it owns. Returns 0 when no mint is configured, which keeps
- * the gate closed rather than open.
+ * token account it owns.
+ *
+ * Returns `null` when the balance could not be READ, which is deliberately
+ * distinct from `0`. A throttled or briefly-down RPC must never be mistaken
+ * for "this wallet sold everything" — that would evict holders from the board
+ * for an outage they had nothing to do with.
+ *
+ * Returns 0 (a real answer) when no mint is configured, so the claim gate
+ * fails closed rather than open.
  */
-export async function tokenBalance(wallet: string): Promise<number> {
+export async function tokenBalance(wallet: string): Promise<number | null> {
   const mint = await getTokenMint()
   if (!mint) return 0
 
@@ -78,8 +85,9 @@ export async function tokenBalance(wallet: string): Promise<number> {
       const amount = account.data.parsed?.info?.tokenAmount?.uiAmount
       return sum + (typeof amount === 'number' ? amount : 0)
     }, 0)
-  } catch {
-    return 0
+  } catch (err) {
+    console.warn(`[chain] balance read failed for ${wallet}: ${(err as Error).message}`)
+    return null
   }
 }
 
