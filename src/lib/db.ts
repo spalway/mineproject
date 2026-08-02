@@ -226,6 +226,32 @@ export function closeRound(
     )
 }
 
+export function getRound(id: number): RoundRow | undefined {
+  return getDb().prepare('SELECT * FROM rounds WHERE id = ?').get(id) as RoundRow | undefined
+}
+
+/**
+ * Which sectors were held during a given round, reconstructed from the claim
+ * and release markers on each spot.
+ *
+ * Deliberately does not return depth: only the CURRENT depth is stored, so
+ * reporting it against a historical round would be a guess dressed as a fact.
+ */
+export function spotsDuringRound(roundId: number): {
+  id: number
+  wallet: string
+  sector: number
+}[] {
+  return getDb()
+    .prepare(
+      `SELECT id, wallet, sector FROM spots
+       WHERE claimed_round <= ?
+         AND (released_round IS NULL OR released_round > ?)
+       ORDER BY sector ASC`,
+    )
+    .all(roundId, roundId) as { id: number; wallet: string; sector: number }[]
+}
+
 export function recentRounds(limit = 30): RoundRow[] {
   return getDb()
     .prepare(`SELECT * FROM rounds WHERE status != 'open' ORDER BY id DESC LIMIT ?`)

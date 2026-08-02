@@ -3,18 +3,17 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ConnectButton } from '@/components/wallet/ConnectButton'
-import { PixelX } from '@/components/shared/PixelX'
+import { PixelBird } from '@/components/shared/PixelBird'
+import { PixelDoc } from '@/components/shared/PixelDoc'
 
 const TWITTER_HANDLE = process.env.NEXT_PUBLIC_TWITTER_HANDLE ?? 'nodeimines'
 const TWITTER_URL = `https://x.com/${TWITTER_HANDLE}`
 
 const LINKS = [
   { href: '/', label: 'pool' },
-  { href: '/launches', label: 'launches' },
+  { href: '/history', label: 'history' },
   { href: '/position', label: 'position' },
-  { href: '/strikes', label: 'strikes' },
-  { href: '/treasury', label: 'treasury' },
-  { href: '/docs', label: 'docs' },
+  { href: '/mechanics', label: 'mechanics' },
 ]
 
 export function Nav() {
@@ -43,7 +42,20 @@ export function Nav() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2">
+          <Link
+            href="/docs"
+            aria-label="docs"
+            title="docs"
+            className={`flex items-center border px-2 py-1.5 transition-colors ${
+              pathname === '/docs'
+                ? 'border-pj-green text-pj-green'
+                : 'border-pj-faint text-pj-dim hover:border-pj-green hover:text-pj-green'
+            }`}
+          >
+            <PixelDoc />
+          </Link>
+
           <a
             href={TWITTER_URL}
             target="_blank"
@@ -51,9 +63,10 @@ export function Nav() {
             aria-label={`nodei on X, @${TWITTER_HANDLE}`}
             className="flex items-center gap-2 border border-pj-faint px-3 py-1 text-pj-green transition-colors hover:border-pj-green hover:bg-pj-green/10"
           >
-            <PixelX />
+            <PixelBird />
             <span className="font-bold">@{TWITTER_HANDLE}</span>
           </a>
+
           <ConnectButton />
         </div>
       </div>

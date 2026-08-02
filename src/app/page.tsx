@@ -109,14 +109,15 @@ function PoolBody({
   return (
     <div className="flex flex-col items-center gap-6 py-2">
       <p className="max-w-2xl text-center text-xs leading-relaxed text-pj-dim">
-        every pump.fun token belongs to one of 64 sectors, decided by its own mint
-        address. hold{' '}
+        {state.config.sectorCount} sectors, one per wallet. hold{' '}
         <span className="font-bold text-pj-green">
           {state.config.minTokens.toLocaleString()}
         </span>{' '}
-        tokens and click an open sector to claim it. every ten minutes,{' '}
+        tokens and click an open sector to claim it — a signature, not a
+        transaction. every {state.config.roundMs / 60_000} minutes the board is
+        ranked and{' '}
         <span className="font-bold text-pj-green">{state.config.feeShareBps / 100}%</span>{' '}
-        of newly accrued creator fees is split across the field.
+        of new creator fees is split across it.
       </p>
 
       <MinerCat />

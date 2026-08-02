@@ -79,9 +79,9 @@ export function Legend() {
       </div>
 
       <p className="pj-dim max-w-xl text-center text-[10px] leading-relaxed">
-        the number top-right is that sector&apos;s grade this round — how many real
-        pump.fun launches landed in it. one claim per wallet. claiming costs
-        nothing but a signature.
+        the number top-right is that sector&apos;s activity this round, which is
+        what ranks the board when the round closes. one claim per wallet, and
+        claiming costs nothing but a signature.
       </p>
     </div>
   )

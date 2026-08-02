@@ -5,111 +5,108 @@ import { Nav } from '@/components/nav/Nav'
 
 const SECTIONS = [
   {
-    id: 'partition',
-    title: 'partition',
+    id: 'overview',
+    title: 'overview',
     body: (
       <>
         <p>
-          every pump.fun token belongs to exactly one of 64 sectors, and the
-          token decides which one, not us.
+          nodei is a collaborative mining pool laid out as a 64 sector field.
+          hold the token, claim one sector with a signature, and every ten
+          minutes the board is ranked and a share of creator fees is split
+          across it.
         </p>
-        <pre className="my-3 border border-pj-faint p-3 text-pj-green">
-          sector = mintPubkey.toBytes()[0] % 64
-        </pre>
-        <p>
-          this works because pump.fun&apos;s vanity grind targets the{' '}
-          <span className="text-pj-green">pump</span> suffix, leaving the leading
-          bytes effectively uniform. the partition is permanent, permissionless,
-          and checkable by anyone in one line. no operator can move a token
-          between sectors. hit{' '}
-          <span className="text-pj-green">/api/verify/&lt;mint&gt;</span> with any
-          token address and check ours against yours.
+        <p className="mt-3">
+          nothing you do here moves your funds. claiming is a signed message,
+          your wallet stays untouched, and the pool never takes custody of
+          anything you hold.
         </p>
       </>
     ),
   },
   {
     id: 'claim',
-    title: 'claim',
+    title: 'claiming a sector',
     body: (
       <>
         <p>
-          hold 10,000 nodei and you can claim one open sector. claiming is a
-          signed message, not a transaction: no lamports move, you pay no network
-          fee, and the wallet prompt says so in plain text.
+          hold the minimum balance and any open sector is yours for the taking.
+          the wallet prompt states plainly that the signature moves no funds, and
+          you pay no network fee for it.
         </p>
         <p className="mt-3">
           the server verifies the signature, then reads your token balance
-          straight from chain. it never takes the client&apos;s word for what a
-          wallet holds. one live spot per wallet, and every spot is re-checked at
-          the start of each round: sell below the minimum and the sector opens
-          back up.
+          straight from chain — it never takes the client&apos;s word for what a
+          wallet holds. one live sector per wallet. balances are re-checked at
+          the start of every round, so selling below the minimum opens your
+          sector back up for someone else.
         </p>
       </>
     ),
   },
   {
-    id: 'rounds',
-    title: 'rounds',
+    id: 'ranking',
+    title: 'how the board is ranked',
     body: (
       <>
         <p>
-          a round runs for ten minutes. every launch that lands in a sector
-          raises its grade by one, capped at one mint per creator per sector so a
-          single wallet cannot spam a cell. the highest grade strikes, and ties
-          go to whichever sector reached the winning count first.
+          each of the 64 sectors is bound to a slice of the solana token address
+          space, and every new token minted on pump.fun falls into exactly one of
+          them, decided by its own address:
+        </p>
+        <pre className="my-3 border border-pj-faint p-3 text-pj-green">
+          sector = mintPubkey.toBytes()[0] % 64
+        </pre>
+        <p>
+          nobody assigns that, including us. the assignment is permanent and
+          anyone can recompute it — pass any token address to{' '}
+          <span className="text-pj-green">/api/verify/&lt;mint&gt;</span> and check
+          our answer against your own.
         </p>
         <p className="mt-3">
-          the round pot is split three ways:{' '}
-          <span className="text-pj-green">50%</span> to the striking sector,{' '}
-          <span className="text-pj-green">20%</span> across the rift around it,
-          and <span className="text-pj-green">30%</span> to every claimed spot on
-          the board. that last leg is what makes this a pool rather than a
-          lottery — holding a spot always earns something.
-        </p>
-        <p className="mt-3">
-          any leg with no eligible recipients is carried into the next round
-          rather than vanishing. an empty board banks the whole pot.
+          a sector&apos;s activity for the round is the count of tokens that landed
+          in it, capped at one per creator per sector so a single wallet cannot
+          manufacture a win cheaply. the busiest sector comes out on top. ties go
+          to whichever sector reached the count first, which makes a contested
+          round a race rather than a coin flip.
         </p>
       </>
     ),
   },
   {
-    id: 'fees',
-    title: 'fees',
+    id: 'split',
+    title: 'how a pot splits',
     body: (
       <>
         <p>
-          the pot comes from pump.fun creator fees. those accrue to the treasury
-          wallet, and <span className="text-pj-green">70%</span> of whatever
-          arrives between two rounds becomes that round&apos;s pot.
+          <span className="text-pj-green">50%</span> to whoever holds the top
+          sector, <span className="text-pj-green">20%</span> across the claimed
+          sectors touching it, and <span className="text-pj-green">30%</span> to
+          every claimed sector on the board.
         </p>
         <p className="mt-3">
-          accrual is measured as the treasury&apos;s balance change across the
-          round, read from chain at each close. a withdrawal counts as zero
-          rather than as a negative pot. the treasury address is published on the
-          treasury page so the flows can be checked independently.
+          that third leg is what makes this a pool rather than a lottery —
+          holding a sector always earns something. any leg with nobody eligible
+          is carried into the next round rather than vanishing, so an empty board
+          banks the whole pot instead of burning it.
         </p>
       </>
     ),
   },
   {
-    id: 'settlement',
-    title: 'settlement',
+    id: 'neighbours',
+    title: 'neighbours',
     body: (
       <>
         <p>
-          each round records what every wallet has earned in a public ledger.
-          your position page shows the running total, split by which leg it came
-          from, and the treasury page shows the same figures board-wide.
+          claimed sectors that touch are linked, and links are counted across
+          every wallet rather than per wallet. you benefit from strangers
+          claiming beside you.
         </p>
         <p className="mt-3">
-          the treasury sends distributions against that ledger. a row moves from{' '}
-          <span className="pj-vein">owed</span> to{' '}
-          <span className="text-pj-green">paid</span> once its transaction
-          signature is attached, so every settlement can be followed on chain.
-          amounts already earned stay on the ledger whether or not you keep your
-          spot.
+          when a sector comes out on top, claimed sectors within two steps of it
+          along that chain share the second leg. the two step cap is deliberate:
+          without it a board-spanning chain would pay everyone and position would
+          stop meaning anything. the mechanics page shows the live map.
         </p>
       </>
     ),
@@ -120,32 +117,53 @@ const SECTIONS = [
     body: (
       <>
         <p>
-          every round your spot survives adds one depth. depth multiplies your
-          share weight up to 3x over 36 rounds, roughly six hours.
+          every round your sector survives adds one depth, and depth multiplies
+          your share weight up to 3x over 36 rounds, roughly six hours.
         </p>
         <p className="mt-3">
-          depth costs nothing to accrue. there is no stake, no burn, and nothing
-          at risk — the only way to lose it is to release your spot or fall below
-          the minimum balance.
+          depth costs nothing to accrue. there is no stake, no burn and nothing
+          at risk — the only way to lose it is to release your sector or fall
+          below the minimum balance.
         </p>
       </>
     ),
   },
   {
-    id: 'rift',
-    title: 'rift',
+    id: 'fees',
+    title: 'where the pot comes from',
     body: (
       <>
         <p>
-          claimed sectors that touch are fractured together, and components are
-          counted across every wallet rather than per-wallet. you benefit from
-          strangers claiming beside you.
+          creator fees accrue to the treasury wallet, and{' '}
+          <span className="text-pj-green">70%</span> of whatever arrives between
+          two rounds becomes that round&apos;s pot.
         </p>
         <p className="mt-3">
-          when a sector strikes, claimed sectors within two hops along the
-          fracture share the rift leg. the two-hop cap is deliberate. without it
-          a board-spanning component would pay everyone and locality would stop
-          meaning anything. the strikes page shows the live fracture map.
+          accrual is measured as the treasury&apos;s balance change across the
+          round, read from chain at each close. a withdrawal counts as zero
+          rather than as a negative pot. the treasury address is published on the
+          mechanics page so the flows can be followed independently.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'settlement',
+    title: 'settlement',
+    body: (
+      <>
+        <p>
+          each round records what every wallet earned in a public ledger. your
+          position page shows your running total broken down by leg, and the
+          history page shows the same figures for every round the pool has run.
+        </p>
+        <p className="mt-3">
+          the treasury sends distributions against that ledger. a row moves from{' '}
+          <span className="pj-vein">owed</span> to{' '}
+          <span className="text-pj-green">paid</span> once its transaction
+          signature is attached, so every settlement can be followed on chain.
+          amounts already earned stay on the ledger whether or not you keep your
+          sector.
         </p>
       </>
     ),
@@ -155,7 +173,7 @@ const SECTIONS = [
     title: 'limits',
     body: (
       <>
-        <p>the things worth knowing before you hold a spot.</p>
+        <p>the things worth knowing before you take a sector.</p>
         <ul className="mt-3 space-y-2">
           <li>
             the 70% share is an operator commitment, not an on-chain rule. there
@@ -166,18 +184,18 @@ const SECTIONS = [
             claiming is signature-only, so nothing here can move your funds.
           </li>
           <li>
-            grade is contestable. anyone can push a sector by paying to launch
-            tokens into it. that is a feature, it costs real sol, and you can
-            watch it happen live on the launches page.
+            the ranking is contestable. anyone can push a sector by paying to
+            launch tokens into it. that is a feature and it costs real sol.
           </li>
           <li>
-            arrival order uses our ingest receipt time, not chain time. tie
-            breaks depend on when we observed a launch.
+            ordering uses our own receipt time, not chain time, so tie breaks
+            depend on when we observed activity.
           </li>
           <li>
-            the launch feed has no sla. if it drops for more than a fifth of a
-            round, that round goes dark: nothing strikes and the pot rolls
-            forward whole. we do not invent launches to cover a gap.
+            the activity feed has no uptime guarantee. if it drops for more than
+            a fifth of a round, that round closes dark: nothing is distributed
+            and the pot rolls forward whole. we never estimate a result to fill a
+            gap.
           </li>
         </ul>
       </>
@@ -196,9 +214,7 @@ export default function Docs() {
             <header>
               <h1 className="text-lg font-bold tracking-[0.25em]">docs</h1>
               <p className="pj-dim mt-2 max-w-2xl text-xs leading-relaxed">
-                nodei is a collaborative mining field over the pump.fun launch
-                stream. hold the token, claim a sector, earn a share of creator
-                fees every ten minutes. eight short sections, one idea each.
+                the full reference. nine short sections, one idea each.
               </p>
             </header>
 
@@ -218,7 +234,7 @@ export default function Docs() {
             </footer>
           </article>
 
-          <nav className="lg:sticky lg:top-16 lg:h-fit lg:w-40">
+          <nav className="lg:sticky lg:top-16 lg:h-fit lg:w-44">
             <div className="pj-label pj-dim mb-2 text-[10px]">contents</div>
             <ul className="space-y-1 text-xs">
               {SECTIONS.map((s) => (
