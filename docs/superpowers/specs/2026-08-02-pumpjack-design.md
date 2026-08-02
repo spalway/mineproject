@@ -271,18 +271,25 @@ SSE is chosen over a client websocket: the stream is one-way, it survives proxie
 
 Plus `/about` — an ORE-style docs page. Five short paragraphs, one idea each, no walls of text.
 
-### 7.1 Visual language — green phosphor terminal
+### 7.1 Visual language — flat backrooms terminal
 
-The entire site is a CRT terminal. Black background, phosphor green text, monospace everywhere, ASCII and box-drawing characters instead of drawn shapes. Reference point is Truth Terminal — which is also pump-ecosystem canon, so the aesthetic reads as native rather than borrowed.
+The site is a terminal transcript rendered on a flat dark grey surface. Green text, monospace everywhere, ASCII and box-drawing characters instead of drawn shapes. Reference point is Truth Terminal / infinite backrooms — which is also pump-ecosystem canon, so the aesthetic reads as native rather than borrowed.
+
+**Flat, not CRT.** No scanlines, no vignette, no text bloom, no gradients anywhere. The background is one evenly-lit grey from edge to edge. The backrooms are uniformly lit and slightly wrong; a curved glowing CRT is the opposite of that.
 
 **Palette.** Only three colours carry meaning:
 
 | Token | Value | Used for |
 |---|---|---|
-| `--bg` | `#050705` | background |
-| `--green` | `#33ff66` | primary text, grade, strike |
-| `--green-dim` | `#1a7a33` | borders, inactive sectors, chrome |
-| `--amber` | `#ffb000` | **vein only** |
+| `--pj-bg` | `#232323` | flat grey background |
+| `--pj-panel` | `#2a2a2a` | panel surfaces |
+| `--pj-green` | `#4af08a` | primary text, grade, strike |
+| `--pj-dim` | `#7c8b80` | secondary text |
+| `--pj-faint` | `#3c403d` | borders, chrome |
+| `--pj-grid` | `#5b645e` | empty sectors |
+| `--pj-amber` | `#ffb000` | **vein only** |
+
+Empty grid cells get their own token deliberately: at border contrast a 64-cell field of `·` reads as blank space rather than as a field.
 
 Amber is an authentic amber-CRT phosphor, so reserving it for the vein stays visually coherent while keeping the rule from §7: exactly one signal colour, and it means jackpot. Nothing else may use amber.
 
@@ -306,7 +313,7 @@ Amber is an authentic amber-CRT phosphor, so reserving it for the vein stays vis
 
 Because everything is characters on a fixed grid, rift fractures render as actual connected line-drawing runs — the tunnels are literally drawn in text.
 
-**CRT treatment.** Subtle scanline overlay, faint text-shadow bloom on green, and a short boot sequence on first load that types out a status banner and then hands over to the live field. The boot sequence must never gate or delay the real data — it plays over an already-connected stream.
+**Boot sequence.** A short typed status banner on first load. It must never gate or delay real data — it plays over an already-connected stream and is purely decorative.
 
 **shadcn** still supplies Dialog, Tooltip, Table, Tabs, ScrollArea, Sonner and friends for behaviour and accessibility, restyled to the terminal palette. Components provide focus management and keyboard handling; the terminal skin is purely presentational on top.
 
