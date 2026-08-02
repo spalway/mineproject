@@ -1,19 +1,23 @@
 'use client'
 
 import { Screen } from '@/components/shared/Screen'
-import { VeinPanel } from '@/components/vein/VeinPanel'
+import { TreasuryPanel } from '@/components/vein/TreasuryPanel'
 
 export default function VeinPage() {
   return (
     <Screen
       title="vein"
-      blurb="six percent of every pot, plus the entire distributable pot whenever the striking sector holds no rigs. it only cracks when a real bonding-curve graduation lands inside the striking sector, and never on demand."
+      blurb="where the money comes from. creator fees accrue to the treasury, a share of each round's inflow becomes that round's pot, and the ledger records what every wallet is owed. settlement is manual."
     >
       {(state) => (
-        <VeinPanel
-          vein={state.vein}
-          epochs={state.epochs}
-          migrations={state.recentMigrations}
+        <TreasuryPanel
+          treasury={state.treasury}
+          carried={state.carried}
+          owed={state.owed}
+          paid={state.paid}
+          rounds={state.rounds}
+          leaderboard={state.leaderboard}
+          feeShareBps={state.config.feeShareBps}
         />
       )}
     </Screen>

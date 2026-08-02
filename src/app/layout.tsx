@@ -1,26 +1,26 @@
 import type { Metadata } from 'next'
-import localFont from 'next/font/local'
+import { Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { WalletProvider } from '@/components/wallet/WalletProvider'
 import { Toaster } from '@/components/ui/sonner'
 
-const pixelta = localFont({
-  src: '../../public/fonts/Pixelta.ttf',
-  variable: '--font-pixelta',
-  display: 'swap',
+const mono = Geist_Mono({
+  variable: '--font-mono',
+  subsets: ['latin'],
+  weight: ['400', '500', '700'],
 })
 
 export const metadata: Metadata = {
   title: 'nodei',
   description:
-    'every pump.fun token belongs to one sector of a 64-cell field, decided by its own mint address. deploy into a sector. when the launch flow grades it highest, it strikes.',
+    'a collaborative mining field over the pump.fun launch stream. hold the token, claim a sector, earn a share of creator fees every ten minutes.',
 }
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${pixelta.variable} dark h-full antialiased`}>
+    <html lang="en" className={`${mono.variable} dark h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <WalletProvider>{children}</WalletProvider>
         <Toaster position="bottom-right" />

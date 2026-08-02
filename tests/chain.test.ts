@@ -2,63 +2,73 @@ import { describe, it, expect } from 'vitest'
 import { Keypair } from '@solana/web3.js'
 import nacl from 'tweetnacl'
 import bs58 from 'bs58'
-import { parseMemo, verifySignedMessage, memoInstruction } from '@/lib/chain'
+import { verifySignedMessage, isValidPubkey } from '@/lib/chain'
+import { claimMessage, releaseMessage } from '@/lib/messages'
 
-describe('parseMemo', () => {
-  it('parses a valid tag', () => {
-    expect(parseMemo('ND1:37')).toBe(37)
-  })
-  it('accepts sector 0', () => {
-    expect(parseMemo('ND1:0')).toBe(0)
-  })
-  it('tolerates surrounding whitespace', () => {
-    expect(parseMemo('  ND1:12  ')).toBe(12)
-  })
-  it('rejects a sector out of range', () => {
-    expect(parseMemo('ND1:64')).toBe(null)
-    expect(parseMemo('ND1:999')).toBe(null)
-  })
-  it('rejects a wrong tag', () => {
-    expect(parseMemo('XX:3')).toBe(null)
-    // The old tag must stop working, or a stale client could still deploy.
-    expect(parseMemo('PJ1:3')).toBe(null)
-  })
-  it('rejects garbage', () => {
-    expect(parseMemo('ND1:abc')).toBe(null)
-    expect(parseMemo('')).toBe(null)
-    expect(parseMemo('ND1:-1')).toBe(null)
-  })
-})
-
-describe('memoInstruction', () => {
-  it('round-trips through parseMemo', () => {
-    const data = memoInstruction(42).data.toString('utf8')
-    expect(parseMemo(data)).toBe(42)
-  })
-})
+const sign = (kp: Keypair, message: string) =>
+  bs58.encode(nacl.sign.detached(new TextEncoder().encode(message), kp.secretKey))
 
 describe('verifySignedMessage', () => {
   it('accepts a genuine signature', () => {
     const kp = Keypair.generate()
-    const nonce = 'nonce-123'
-    const sig = bs58.encode(nacl.sign.detached(new TextEncoder().encode(nonce), kp.secretKey))
-    expect(verifySignedMessage(kp.publicKey.toBase58(), nonce, sig)).toBe(true)
+    const msg = claimMessage(37, 'nonce-123')
+    expect(verifySignedMessage(kp.publicKey.toBase58(), msg, sign(kp, msg))).toBe(true)
   })
 
   it('rejects a signature from a different wallet', () => {
     const a = Keypair.generate()
     const b = Keypair.generate()
-    const sig = bs58.encode(nacl.sign.detached(new TextEncoder().encode('n'), a.secretKey))
-    expect(verifySignedMessage(b.publicKey.toBase58(), 'n', sig)).toBe(false)
+    const msg = claimMessage(37, 'nonce-123')
+    expect(verifySignedMessage(b.publicKey.toBase58(), msg, sign(a, msg))).toBe(false)
   })
 
-  it('rejects a signature over a different message', () => {
+  it('rejects a signature over a different sector', () => {
     const kp = Keypair.generate()
-    const sig = bs58.encode(nacl.sign.detached(new TextEncoder().encode('one'), kp.secretKey))
-    expect(verifySignedMessage(kp.publicKey.toBase58(), 'two', sig)).toBe(false)
+    const signed = sign(kp, claimMessage(37, 'n'))
+    // A claim signed for sector 37 cannot be repointed at sector 12.
+    expect(verifySignedMessage(kp.publicKey.toBase58(), claimMessage(12, 'n'), signed)).toBe(
+      false,
+    )
+  })
+
+  it('rejects a signature over a different nonce', () => {
+    const kp = Keypair.generate()
+    const signed = sign(kp, claimMessage(37, 'nonce-a'))
+    expect(
+      verifySignedMessage(kp.publicKey.toBase58(), claimMessage(37, 'nonce-b'), signed),
+    ).toBe(false)
+  })
+
+  it('does not accept a claim signature as a release', () => {
+    const kp = Keypair.generate()
+    const signed = sign(kp, claimMessage(5, 'n'))
+    expect(verifySignedMessage(kp.publicKey.toBase58(), releaseMessage(5, 'n'), signed)).toBe(
+      false,
+    )
   })
 
   it('rejects malformed input without throwing', () => {
     expect(verifySignedMessage('not-a-key', 'n', 'also-not')).toBe(false)
+  })
+})
+
+describe('claim message', () => {
+  it('states plainly that it moves nothing', () => {
+    expect(claimMessage(7, 'abc')).toContain('moves no funds')
+  })
+  it('names the sector and nonce it is bound to', () => {
+    const msg = claimMessage(7, 'abc')
+    expect(msg).toContain('sector: 7')
+    expect(msg).toContain('nonce: abc')
+  })
+})
+
+describe('isValidPubkey', () => {
+  it('accepts a real key', () => {
+    expect(isValidPubkey(Keypair.generate().publicKey.toBase58())).toBe(true)
+  })
+  it('rejects junk', () => {
+    expect(isValidPubkey('not-a-key')).toBe(false)
+    expect(isValidPubkey('')).toBe(false)
   })
 })

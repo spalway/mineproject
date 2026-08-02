@@ -1,39 +1,37 @@
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { Rig } from './payout'
+import type { Spot } from './payout'
 
 /**
- * Storage uses Node's first-party `node:sqlite`. Same synchronous shape as
- * better-sqlite3 but with no native compile step, which matters on Windows
- * where npm blocks install scripts by default.
+ * Storage uses Node's first-party `node:sqlite` — same synchronous shape as
+ * better-sqlite3 with no native compile step.
  *
  * All money columns are INTEGER lamports. Never store money as REAL.
  */
 
 const SCHEMA = `
 PRAGMA journal_mode = WAL;
-PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS epochs (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
-  started_at        INTEGER NOT NULL,
-  ended_at          INTEGER,
-  status            TEXT    NOT NULL DEFAULT 'open',
-  strike_sector     INTEGER,
-  pot_lamports      INTEGER NOT NULL DEFAULT 0,
-  treasury_lamports INTEGER NOT NULL DEFAULT 0,
-  vein_add_lamports INTEGER NOT NULL DEFAULT 0,
-  vein_paid_lamports INTEGER NOT NULL DEFAULT 0,
-  migration_mint    TEXT,
-  mint_count        INTEGER NOT NULL DEFAULT 0,
-  uptime_ratio      REAL    NOT NULL DEFAULT 1
+CREATE TABLE IF NOT EXISTS rounds (
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at           INTEGER NOT NULL,
+  ended_at             INTEGER,
+  status               TEXT    NOT NULL DEFAULT 'open',
+  strike_sector        INTEGER,
+  pot_lamports         INTEGER NOT NULL DEFAULT 0,
+  carried_lamports     INTEGER NOT NULL DEFAULT 0,
+  fee_accrued_lamports INTEGER NOT NULL DEFAULT 0,
+  treasury_lamports    INTEGER NOT NULL DEFAULT 0,
+  migration_mint       TEXT,
+  mint_count           INTEGER NOT NULL DEFAULT 0,
+  uptime_ratio         REAL    NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS mints (
   mint        TEXT PRIMARY KEY,
   sector      INTEGER NOT NULL,
-  epoch_id    INTEGER NOT NULL,
+  round_id    INTEGER NOT NULL,
   received_at INTEGER NOT NULL,
   name        TEXT,
   symbol      TEXT,
@@ -41,66 +39,57 @@ CREATE TABLE IF NOT EXISTS mints (
   creator     TEXT,
   counted     INTEGER NOT NULL DEFAULT 1
 );
-CREATE INDEX IF NOT EXISTS idx_mints_epoch ON mints(epoch_id);
+CREATE INDEX IF NOT EXISTS idx_mints_round ON mints(round_id);
 
 CREATE TABLE IF NOT EXISTS migrations (
   mint        TEXT PRIMARY KEY,
   sector      INTEGER NOT NULL,
-  epoch_id    INTEGER NOT NULL,
+  round_id    INTEGER NOT NULL,
   received_at INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_migrations_epoch ON migrations(epoch_id);
+CREATE INDEX IF NOT EXISTS idx_migrations_round ON migrations(round_id);
 
-CREATE TABLE IF NOT EXISTS rigs (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  wallet          TEXT    NOT NULL,
-  sector          INTEGER NOT NULL,
-  balance_lamports INTEGER NOT NULL,
-  depth           INTEGER NOT NULL DEFAULT 0,
-  status          TEXT    NOT NULL DEFAULT 'active',
-  deploy_sig      TEXT    NOT NULL UNIQUE,
-  created_epoch   INTEGER NOT NULL,
-  closed_epoch    INTEGER
+-- One live spot per wallet is enforced by the partial unique index below.
+CREATE TABLE IF NOT EXISTS spots (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  wallet         TEXT    NOT NULL,
+  sector         INTEGER NOT NULL,
+  depth          INTEGER NOT NULL DEFAULT 0,
+  tokens         REAL    NOT NULL DEFAULT 0,
+  status         TEXT    NOT NULL DEFAULT 'live',
+  claimed_round  INTEGER NOT NULL,
+  released_round INTEGER,
+  released_reason TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_rigs_status ON rigs(status);
-CREATE INDEX IF NOT EXISTS idx_rigs_wallet ON rigs(wallet);
-
-CREATE TABLE IF NOT EXISTS draws (
-  id       INTEGER PRIMARY KEY AUTOINCREMENT,
-  rig_id   INTEGER NOT NULL,
-  epoch_id INTEGER NOT NULL,
-  lamports INTEGER NOT NULL
-);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_spots_one_per_wallet
+  ON spots(wallet) WHERE status = 'live';
+CREATE INDEX IF NOT EXISTS idx_spots_status ON spots(status);
 
 CREATE TABLE IF NOT EXISTS payouts (
   id        INTEGER PRIMARY KEY AUTOINCREMENT,
-  epoch_id  INTEGER NOT NULL,
+  round_id  INTEGER NOT NULL,
   wallet    TEXT    NOT NULL,
-  rig_id    INTEGER,
+  spot_id   INTEGER,
   kind      TEXT    NOT NULL,
   lamports  INTEGER NOT NULL,
+  status    TEXT    NOT NULL DEFAULT 'owed',
   signature TEXT,
-  status    TEXT    NOT NULL DEFAULT 'pending',
-  UNIQUE (epoch_id, rig_id, kind)
+  paid_at   INTEGER,
+  UNIQUE (round_id, spot_id, kind)
 );
 CREATE INDEX IF NOT EXISTS idx_payouts_status ON payouts(status);
-
-CREATE TABLE IF NOT EXISTS vein (
-  id               INTEGER PRIMARY KEY CHECK (id = 1),
-  balance_lamports INTEGER NOT NULL DEFAULT 0
-);
-INSERT OR IGNORE INTO vein (id, balance_lamports) VALUES (1, 0);
-
-CREATE TABLE IF NOT EXISTS used_sigs (
-  signature TEXT PRIMARY KEY,
-  seen_at   INTEGER NOT NULL
-);
+CREATE INDEX IF NOT EXISTS idx_payouts_wallet ON payouts(wallet);
 
 CREATE TABLE IF NOT EXISTS nonces (
   nonce      TEXT PRIMARY KEY,
   wallet     TEXT    NOT NULL,
   created_at INTEGER NOT NULL,
   used       INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 );
 `
 
@@ -121,44 +110,69 @@ export function getDb(path?: string, opts?: { reset?: boolean }): DatabaseSync {
   return handle
 }
 
-// ---------------------------------------------------------------- epochs
+// ------------------------------------------------------------------ meta
 
-export type EpochRow = {
+export function metaGet(key: string): string | null {
+  const r = getDb().prepare('SELECT value FROM meta WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined
+  return r?.value ?? null
+}
+
+export function metaSet(key: string, value: string): void {
+  getDb()
+    .prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?')
+    .run(key, value, value)
+}
+
+export const getCarried = (): number => Number(metaGet('carried') ?? 0)
+export const setCarried = (n: number): void => metaSet('carried', String(n))
+
+/** Treasury lamports observed at the last round close, for fee-delta maths. */
+export const getLastTreasury = (): number | null => {
+  const v = metaGet('last_treasury')
+  return v === null ? null : Number(v)
+}
+export const setLastTreasury = (n: number): void => metaSet('last_treasury', String(n))
+
+// ---------------------------------------------------------------- rounds
+
+export type RoundRow = {
   id: number
   started_at: number
   ended_at: number | null
   status: string
   strike_sector: number | null
   pot_lamports: number
+  carried_lamports: number
+  fee_accrued_lamports: number
   treasury_lamports: number
-  vein_add_lamports: number
-  vein_paid_lamports: number
   migration_mint: string | null
   mint_count: number
   uptime_ratio: number
 }
 
-export function openEpoch(startedAt: number): number {
-  const r = getDb().prepare('INSERT INTO epochs (started_at) VALUES (?)').run(startedAt)
+export function openRound(startedAt: number): number {
+  const r = getDb().prepare('INSERT INTO rounds (started_at) VALUES (?)').run(startedAt)
   return Number(r.lastInsertRowid)
 }
 
-export function currentEpoch(): EpochRow | undefined {
+export function currentRound(): RoundRow | undefined {
   return getDb()
-    .prepare(`SELECT * FROM epochs WHERE status = 'open' ORDER BY id DESC LIMIT 1`)
-    .get() as EpochRow | undefined
+    .prepare(`SELECT * FROM rounds WHERE status = 'open' ORDER BY id DESC LIMIT 1`)
+    .get() as RoundRow | undefined
 }
 
-export function closeEpoch(
+export function closeRound(
   id: number,
   f: {
     endedAt: number
     status: 'resolved' | 'void'
     strikeSector: number | null
     pot: number
+    carried: number
+    feeAccrued: number
     treasury: number
-    veinAdd: number
-    veinPaid: number
     migrationMint: string | null
     mintCount: number
     uptimeRatio: number
@@ -166,8 +180,8 @@ export function closeEpoch(
 ): void {
   getDb()
     .prepare(
-      `UPDATE epochs SET ended_at=?, status=?, strike_sector=?, pot_lamports=?,
-       treasury_lamports=?, vein_add_lamports=?, vein_paid_lamports=?,
+      `UPDATE rounds SET ended_at=?, status=?, strike_sector=?, pot_lamports=?,
+       carried_lamports=?, fee_accrued_lamports=?, treasury_lamports=?,
        migration_mint=?, mint_count=?, uptime_ratio=? WHERE id=?`,
     )
     .run(
@@ -175,9 +189,9 @@ export function closeEpoch(
       f.status,
       f.strikeSector,
       f.pot,
+      f.carried,
+      f.feeAccrued,
       f.treasury,
-      f.veinAdd,
-      f.veinPaid,
       f.migrationMint,
       f.mintCount,
       f.uptimeRatio,
@@ -185,18 +199,18 @@ export function closeEpoch(
     )
 }
 
-export function recentEpochs(limit = 50): EpochRow[] {
+export function recentRounds(limit = 30): RoundRow[] {
   return getDb()
-    .prepare(`SELECT * FROM epochs WHERE status != 'open' ORDER BY id DESC LIMIT ?`)
-    .all(limit) as EpochRow[]
+    .prepare(`SELECT * FROM rounds WHERE status != 'open' ORDER BY id DESC LIMIT ?`)
+    .all(limit) as RoundRow[]
 }
 
-// ----------------------------------------------------------------- feed
+// ------------------------------------------------------------------ feed
 
 export type MintRow = {
   mint: string
   sector: number
-  epoch_id: number
+  round_id: number
   received_at: number
   name: string | null
   symbol: string | null
@@ -208,7 +222,7 @@ export type MintRow = {
 export function insertMint(m: {
   mint: string
   sector: number
-  epochId: number
+  roundId: number
   receivedAt: number
   name?: string | null
   symbol?: string | null
@@ -217,13 +231,13 @@ export function insertMint(m: {
 }): void {
   getDb()
     .prepare(
-      `INSERT OR IGNORE INTO mints (mint, sector, epoch_id, received_at, name, symbol, uri, creator)
+      `INSERT OR IGNORE INTO mints (mint, sector, round_id, received_at, name, symbol, uri, creator)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       m.mint,
       m.sector,
-      m.epochId,
+      m.roundId,
       m.receivedAt,
       m.name ?? null,
       m.symbol ?? null,
@@ -235,32 +249,29 @@ export function insertMint(m: {
 export function insertMigration(g: {
   mint: string
   sector: number
-  epochId: number
+  roundId: number
   receivedAt: number
 }): void {
   getDb()
     .prepare(
-      `INSERT OR IGNORE INTO migrations (mint, sector, epoch_id, received_at) VALUES (?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO migrations (mint, sector, round_id, received_at) VALUES (?, ?, ?, ?)`,
     )
-    .run(g.mint, g.sector, g.epochId, g.receivedAt)
+    .run(g.mint, g.sector, g.roundId, g.receivedAt)
 }
 
-export function epochMints(epochId: number): MintRow[] {
+export function roundMints(roundId: number): MintRow[] {
   return getDb()
-    .prepare('SELECT * FROM mints WHERE epoch_id = ? ORDER BY received_at ASC')
-    .all(epochId) as MintRow[]
+    .prepare('SELECT * FROM mints WHERE round_id = ? ORDER BY received_at ASC')
+    .all(roundId) as MintRow[]
 }
 
-export function epochMigrations(epochId: number): { mint: string; sector: number }[] {
+export function roundMigrations(roundId: number): { mint: string; sector: number }[] {
   return getDb()
-    .prepare('SELECT mint, sector FROM migrations WHERE epoch_id = ?')
-    .all(epochId) as { mint: string; sector: number }[]
+    .prepare('SELECT mint, sector FROM migrations WHERE round_id = ?')
+    .all(roundId) as { mint: string; sector: number }[]
 }
 
-/**
- * Flag mints that did not contribute to grade (per-creator cap, spec §3.7).
- * Stored rather than recomputed so the cap is auditable instead of invisible.
- */
+/** Flag mints the per-creator cap excluded, so the cap stays auditable. */
 export function markUncounted(mints: string[]): void {
   if (mints.length === 0) return
   const marks = mints.map(() => '?').join(',')
@@ -273,195 +284,179 @@ export function recentMints(limit = 50): MintRow[] {
     .all(limit) as MintRow[]
 }
 
-export function recentMigrations(limit = 20): { mint: string; sector: number; received_at: number }[] {
+export function recentMigrations(
+  limit = 20,
+): { mint: string; sector: number; received_at: number }[] {
   return getDb()
     .prepare('SELECT mint, sector, received_at FROM migrations ORDER BY received_at DESC LIMIT ?')
     .all(limit) as { mint: string; sector: number; received_at: number }[]
 }
 
-// ------------------------------------------------------------------ rigs
+// ----------------------------------------------------------------- spots
 
-type RigRow = {
+type SpotRow = {
   id: number
   wallet: string
   sector: number
-  balance_lamports: number
   depth: number
+  tokens: number
   status: string
-  deploy_sig: string
-  created_epoch: number
-  closed_epoch: number | null
+  claimed_round: number
+  released_round: number | null
+  released_reason: string | null
 }
 
-const toRig = (r: RigRow): Rig => ({
+const toSpot = (r: SpotRow): Spot => ({
   id: r.id,
   wallet: r.wallet,
   sector: r.sector,
-  balance: r.balance_lamports,
   depth: r.depth,
+  tokens: r.tokens,
 })
 
-export function createRig(r: {
+/** Throws if the wallet already holds a live spot (unique index). */
+export function claimSpot(s: {
   wallet: string
   sector: number
-  lamports: number
-  sig: string
-  epoch: number
+  tokens: number
+  round: number
 }): number {
   const res = getDb()
     .prepare(
-      `INSERT INTO rigs (wallet, sector, balance_lamports, deploy_sig, created_epoch)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO spots (wallet, sector, tokens, claimed_round) VALUES (?, ?, ?, ?)`,
     )
-    .run(r.wallet, r.sector, r.lamports, r.sig, r.epoch)
+    .run(s.wallet, s.sector, s.tokens, s.round)
   return Number(res.lastInsertRowid)
 }
 
-export function activeRigs(): Rig[] {
-  const rows = getDb()
-    .prepare(`SELECT * FROM rigs WHERE status = 'active' AND balance_lamports > 0`)
-    .all() as RigRow[]
-  return rows.map(toRig)
-}
-
-export function rigsInSectors(sectors: number[]): Rig[] {
-  if (sectors.length === 0) return []
-  const marks = sectors.map(() => '?').join(',')
-  const rows = getDb()
+export function releaseSpot(id: number, round: number, reason: string): void {
+  getDb()
     .prepare(
-      `SELECT * FROM rigs WHERE status='active' AND balance_lamports > 0 AND sector IN (${marks})`,
+      `UPDATE spots SET status='released', released_round=?, released_reason=? WHERE id=?`,
     )
-    .all(...sectors) as RigRow[]
-  return rows.map(toRig)
+    .run(round, reason, id)
 }
 
-export function walletRigs(wallet: string): (Rig & { status: string; deploySig: string })[] {
+export function liveSpots(): Spot[] {
   const rows = getDb()
-    .prepare('SELECT * FROM rigs WHERE wallet = ? ORDER BY id DESC')
-    .all(wallet) as RigRow[]
-  return rows.map((r) => ({ ...toRig(r), status: r.status, deploySig: r.deploy_sig }))
+    .prepare(`SELECT * FROM spots WHERE status = 'live' ORDER BY id ASC`)
+    .all() as SpotRow[]
+  return rows.map(toSpot)
 }
 
-export function getRig(id: number): (Rig & { status: string }) | undefined {
-  const r = getDb().prepare('SELECT * FROM rigs WHERE id = ?').get(id) as RigRow | undefined
-  return r ? { ...toRig(r), status: r.status } : undefined
+export function spotByWallet(wallet: string): (Spot & { status: string }) | undefined {
+  const r = getDb()
+    .prepare(`SELECT * FROM spots WHERE wallet = ? AND status = 'live'`)
+    .get(wallet) as SpotRow | undefined
+  return r ? { ...toSpot(r), status: r.status } : undefined
 }
 
-export function setRigBalance(id: number, lamports: number): void {
-  getDb().prepare('UPDATE rigs SET balance_lamports = ? WHERE id = ?').run(lamports, id)
+export function getSpot(id: number): (Spot & { status: string }) | undefined {
+  const r = getDb().prepare('SELECT * FROM spots WHERE id = ?').get(id) as SpotRow | undefined
+  return r ? { ...toSpot(r), status: r.status } : undefined
+}
+
+export function sectorTaken(sector: number): boolean {
+  const r = getDb()
+    .prepare(`SELECT COUNT(*) AS n FROM spots WHERE sector = ? AND status = 'live'`)
+    .get(sector) as { n: number }
+  return r.n > 0
 }
 
 export function bumpDepth(ids: number[]): void {
   if (ids.length === 0) return
   const marks = ids.map(() => '?').join(',')
-  getDb().prepare(`UPDATE rigs SET depth = depth + 1 WHERE id IN (${marks})`).run(...ids)
+  getDb().prepare(`UPDATE spots SET depth = depth + 1 WHERE id IN (${marks})`).run(...ids)
 }
 
-export function closeRig(id: number, epoch: number): void {
-  getDb()
-    .prepare(`UPDATE rigs SET status='closed', closed_epoch=?, balance_lamports=0 WHERE id=?`)
-    .run(epoch, id)
+export function setSpotTokens(id: number, tokens: number): void {
+  getDb().prepare('UPDATE spots SET tokens = ? WHERE id = ?').run(tokens, id)
 }
 
 export function occupiedSectors(): Set<number> {
   const rows = getDb()
-    .prepare(
-      `SELECT DISTINCT sector FROM rigs WHERE status='active' AND balance_lamports > 0`,
-    )
+    .prepare(`SELECT DISTINCT sector FROM spots WHERE status = 'live'`)
     .all() as { sector: number }[]
   return new Set(rows.map((r) => r.sector))
 }
 
-// --------------------------------------------------------------- money
-
-export function recordDraw(rigId: number, epochId: number, lamports: number): void {
-  getDb()
-    .prepare('INSERT INTO draws (rig_id, epoch_id, lamports) VALUES (?, ?, ?)')
-    .run(rigId, epochId, lamports)
-}
+// --------------------------------------------------------------- payouts
 
 export type PayoutRow = {
   id: number
-  epoch_id: number
+  round_id: number
   wallet: string
-  rig_id: number | null
+  spot_id: number | null
   kind: string
   lamports: number
-  signature: string | null
   status: string
+  signature: string | null
+  paid_at: number | null
 }
 
 export function recordPayout(p: {
-  epochId: number
+  roundId: number
   wallet: string
-  rigId: number | null
-  kind: 'strike' | 'rift' | 'vein' | 'withdraw'
+  spotId: number | null
+  kind: 'strike' | 'rift' | 'pool'
   lamports: number
 }): void {
   getDb()
     .prepare(
-      `INSERT OR IGNORE INTO payouts (epoch_id, wallet, rig_id, kind, lamports)
+      `INSERT OR IGNORE INTO payouts (round_id, wallet, spot_id, kind, lamports)
        VALUES (?, ?, ?, ?, ?)`,
     )
-    .run(p.epochId, p.wallet, p.rigId, p.kind, p.lamports)
+    .run(p.roundId, p.wallet, p.spotId, p.kind, p.lamports)
 }
 
-export function pendingPayouts(limit = 50): PayoutRow[] {
+export function owedByWallet(): { wallet: string; lamports: number; rounds: number }[] {
   return getDb()
-    .prepare(`SELECT * FROM payouts WHERE status='pending' AND lamports > 0 ORDER BY id ASC LIMIT ?`)
-    .all(limit) as PayoutRow[]
+    .prepare(
+      `SELECT wallet, SUM(lamports) AS lamports, COUNT(DISTINCT round_id) AS rounds
+       FROM payouts WHERE status = 'owed' AND lamports > 0
+       GROUP BY wallet ORDER BY lamports DESC`,
+    )
+    .all() as { wallet: string; lamports: number; rounds: number }[]
 }
 
-export function markPayoutSent(ids: number[], signature: string): void {
-  if (ids.length === 0) return
-  const marks = ids.map(() => '?').join(',')
-  getDb()
-    .prepare(`UPDATE payouts SET status='sent', signature=? WHERE id IN (${marks})`)
-    .run(signature, ...ids)
-}
-
-export function markPayoutFailed(ids: number[]): void {
-  if (ids.length === 0) return
-  const marks = ids.map(() => '?').join(',')
-  getDb().prepare(`UPDATE payouts SET status='pending' WHERE id IN (${marks})`).run(...ids)
-}
-
-export function epochPayouts(epochId: number): PayoutRow[] {
+export function walletPayouts(wallet: string, limit = 60): PayoutRow[] {
   return getDb()
-    .prepare('SELECT * FROM payouts WHERE epoch_id = ? ORDER BY lamports DESC')
-    .all(epochId) as PayoutRow[]
+    .prepare('SELECT * FROM payouts WHERE wallet = ? ORDER BY id DESC LIMIT ?')
+    .all(wallet, limit) as PayoutRow[]
 }
 
-export function veinBalance(): number {
-  const r = getDb().prepare('SELECT balance_lamports FROM vein WHERE id = 1').get() as
-    | { balance_lamports: number }
-    | undefined
-  return r?.balance_lamports ?? 0
+export function roundPayouts(roundId: number): PayoutRow[] {
+  return getDb()
+    .prepare('SELECT * FROM payouts WHERE round_id = ? ORDER BY lamports DESC')
+    .all(roundId) as PayoutRow[]
 }
 
-export function addToVein(lamports: number): void {
-  getDb()
-    .prepare('UPDATE vein SET balance_lamports = balance_lamports + ? WHERE id = 1')
-    .run(lamports)
+/** Operator marks a wallet settled after paying by hand. */
+export function markWalletPaid(wallet: string, signature: string): number {
+  const res = getDb()
+    .prepare(
+      `UPDATE payouts SET status='paid', signature=?, paid_at=?
+       WHERE wallet = ? AND status = 'owed'`,
+    )
+    .run(signature, Date.now(), wallet)
+  return Number(res.changes)
 }
 
-export function resetVein(): void {
-  getDb().prepare('UPDATE vein SET balance_lamports = 0 WHERE id = 1').run()
+export function totalOwed(): number {
+  const r = getDb()
+    .prepare(`SELECT COALESCE(SUM(lamports), 0) AS n FROM payouts WHERE status = 'owed'`)
+    .get() as { n: number }
+  return r.n
 }
 
-// ------------------------------------------------------------ integrity
-
-/** Returns false if this signature was already used. Replay protection. */
-export function consumeSignature(signature: string): boolean {
-  try {
-    getDb()
-      .prepare('INSERT INTO used_sigs (signature, seen_at) VALUES (?, ?)')
-      .run(signature, Date.now())
-    return true
-  } catch {
-    return false
-  }
+export function totalPaid(): number {
+  const r = getDb()
+    .prepare(`SELECT COALESCE(SUM(lamports), 0) AS n FROM payouts WHERE status = 'paid'`)
+    .get() as { n: number }
+  return r.n
 }
+
+// ---------------------------------------------------------------- nonces
 
 export function issueNonce(wallet: string, nonce: string): void {
   getDb()
@@ -469,7 +464,7 @@ export function issueNonce(wallet: string, nonce: string): void {
     .run(nonce, wallet, Date.now())
 }
 
-/** Single-use, wallet-bound, 5 minute lifetime. */
+/** Single-use, wallet-bound, five minute lifetime. */
 export function consumeNonce(wallet: string, nonce: string): boolean {
   const row = getDb().prepare('SELECT * FROM nonces WHERE nonce = ?').get(nonce) as
     | { wallet: string; created_at: number; used: number }

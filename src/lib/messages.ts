@@ -1,17 +1,26 @@
 /**
  * Formats shared by client and server. Both sides must produce byte-identical
- * strings or verification fails, so this module has no server-only imports.
+ * strings or signature verification fails, so this module has no server-only
+ * imports.
+ *
+ * These are deliberately readable in a wallet prompt: anyone signing should be
+ * able to see that it claims a spot and moves nothing.
  */
 
-export const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'
-
-export const MEMO_TAG = 'ND1'
-
-/** Memo payload written into a deploy transaction: `ND1:<sector>`. */
-export function memoText(sector: number): string {
-  return `${MEMO_TAG}:${sector}`
+export function claimMessage(sector: number, nonce: string): string {
+  return [
+    'nodei :: claim spot',
+    `sector: ${sector}`,
+    'this signature moves no funds',
+    `nonce: ${nonce}`,
+  ].join('\n')
 }
 
-export function withdrawMessage(rigId: number, nonce: string): string {
-  return `nodei withdraw\nrig: ${rigId}\nnonce: ${nonce}`
+export function releaseMessage(spotId: number, nonce: string): string {
+  return [
+    'nodei :: release spot',
+    `spot: ${spotId}`,
+    'this signature moves no funds',
+    `nonce: ${nonce}`,
+  ].join('\n')
 }

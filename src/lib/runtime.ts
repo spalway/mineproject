@@ -2,23 +2,25 @@ import { CONFIG } from './config'
 import { bus } from './bus'
 import { Ingest, type ParsedEvent } from './ingest'
 import * as db from './db'
-import { resolveEpoch, computeGrades, type MintEvent } from './engine'
+import { resolveRound, computeGrades, type MintEvent } from './engine'
 import { riftClaimants, riftComponents } from './rift'
-import { splitPot, splitVein, drawOf, type Rig } from './payout'
-import { sendBatch } from './chain'
+import { splitPot, feeShare, weightOf, type Spot } from './payout'
+import { tokenBalance, treasuryBalance, TOKEN_MINT, TREASURY_ADDRESS } from './chain'
 
 /**
- * Owns the websocket, the epoch clock, and the payout loop. Boots once per
- * server process from instrumentation.ts.
+ * Owns the websocket and the round clock. Boots once per server process from
+ * instrumentation.ts.
+ *
+ * There is no payout loop, because the server cannot move funds. Rounds
+ * compute what each wallet is OWED and write it to a public ledger, and
+ * settlement is done by hand.
  */
 
-const PAYOUT_INTERVAL_MS = 15_000
-const TICK_INTERVAL_MS = 1_000
+const TICK_INTERVAL_MS = 2_000
 
 type Runtime = {
   ingest: Ingest
   tickTimer: NodeJS.Timeout
-  payoutTimer: NodeJS.Timeout
 }
 
 const globalRef = globalThis as unknown as { __nodeiRuntime?: Runtime }
@@ -33,8 +35,8 @@ const toMintEvent = (r: db.MintRow): MintEvent => ({
 // ------------------------------------------------------------------ feed
 
 function handleEvent(e: ParsedEvent): void {
-  const epoch = db.currentEpoch()
-  if (!epoch) return
+  const round = db.currentRound()
+  if (!round) return
 
   const at = Date.now()
 
@@ -42,7 +44,7 @@ function handleEvent(e: ParsedEvent): void {
     db.insertMint({
       mint: e.mint,
       sector: e.sector,
-      epochId: epoch.id,
+      roundId: round.id,
       receivedAt: at,
       name: e.name,
       symbol: e.symbol,
@@ -58,151 +60,135 @@ function handleEvent(e: ParsedEvent): void {
       at,
     })
   } else {
-    db.insertMigration({ mint: e.mint, sector: e.sector, epochId: epoch.id, receivedAt: at })
+    db.insertMigration({ mint: e.mint, sector: e.sector, roundId: round.id, receivedAt: at })
     bus.publish({ type: 'migration', mint: e.mint, sector: e.sector, at })
   }
 
-  const { grades } = computeGrades(db.epochMints(epoch.id).map(toMintEvent))
+  const { grades } = computeGrades(db.roundMints(round.id).map(toMintEvent))
   bus.publish({ type: 'grade', grades })
 }
 
-// ----------------------------------------------------------------- clock
+// ---------------------------------------------------------------- rounds
 
 /**
- * Resolve the open epoch if it is due, then open the next one.
- * Exported separately from the timer so it can be driven directly in tests.
+ * Re-check that every live spot still holds the minimum. Selling below the
+ * threshold releases the spot at the next round boundary rather than at sale
+ * time, because chain state is only read on the boundary.
  */
-export function tick(now: number, uptimeRatio: number): void {
-  const epoch = db.currentEpoch()
+async function reconcileHoldings(roundId: number): Promise<Spot[]> {
+  const spots = db.liveSpots()
+  if (!TOKEN_MINT) return spots
 
-  if (!epoch) {
-    const id = db.openEpoch(now)
-    bus.publish({ type: 'tick', epochId: id, startedAt: now, endsAt: now + CONFIG.EPOCH_MS })
+  const kept: Spot[] = []
+  for (const spot of spots) {
+    const tokens = await tokenBalance(spot.wallet)
+    db.setSpotTokens(spot.id, tokens)
+
+    if (tokens < CONFIG.MIN_TOKEN_BALANCE) {
+      db.releaseSpot(spot.id, roundId, 'below minimum balance')
+      bus.publish({ type: 'release', wallet: spot.wallet, sector: spot.sector })
+    } else {
+      kept.push({ ...spot, tokens })
+    }
+  }
+  return kept
+}
+
+/**
+ * Resolve the open round if it is due, then open the next one.
+ * Exported separately from the timer so tests can drive it directly.
+ */
+export async function tick(
+  now: number,
+  uptimeRatio: number,
+  treasury: number | null,
+): Promise<void> {
+  const round = db.currentRound()
+
+  if (!round) {
+    const id = db.openRound(now)
+    bus.publish({ type: 'tick', roundId: id, startedAt: now, endsAt: now + CONFIG.ROUND_MS })
     return
   }
 
-  if (now < epoch.started_at + CONFIG.EPOCH_MS) return
+  if (now < round.started_at + CONFIG.ROUND_MS) return
 
-  const mintRows = db.epochMints(epoch.id)
-  const result = resolveEpoch({
+  const mintRows = db.roundMints(round.id)
+  const result = resolveRound({
     mints: mintRows.map(toMintEvent),
-    migrations: db.epochMigrations(epoch.id),
+    migrations: db.roundMigrations(round.id),
     uptimeRatio,
   })
 
-  // Record which mints the per-creator cap excluded.
   const countedSet = new Set(result.countedMints.map((m) => m.mint))
   db.markUncounted(mintRows.filter((m) => !countedSet.has(m.mint)).map((m) => m.mint))
 
-  const activeBefore = db.activeRigs()
+  const spots = await reconcileHoldings(round.id)
+
+  // Fees accrued since the last close. A withdrawal makes the delta negative,
+  // in which case the round simply has no new fees rather than a negative pot.
+  const last = db.getLastTreasury()
+  const accrued = treasury !== null && last !== null ? Math.max(0, treasury - last) : 0
+  if (treasury !== null) db.setLastTreasury(treasury)
+
+  const carried = db.getCarried()
+  const pot = feeShare(accrued) + carried
 
   if (result.status === 'void') {
-    // No draw charged, no strike, but depth still accrues. We never invent
-    // data to paper over a feed gap.
-    db.bumpDepth(activeBefore.map((r) => r.id))
-    db.closeEpoch(epoch.id, {
+    // Nothing distributed and nothing lost: the pot rolls forward whole and
+    // depth still accrues. We never invent data to cover a feed gap.
+    db.bumpDepth(spots.map((s) => s.id))
+    db.setCarried(pot)
+    db.closeRound(round.id, {
       endedAt: now,
       status: 'void',
       strikeSector: null,
       pot: 0,
-      treasury: 0,
-      veinAdd: 0,
-      veinPaid: 0,
+      carried: pot,
+      feeAccrued: accrued,
+      treasury: treasury ?? 0,
       migrationMint: null,
       mintCount: mintRows.length,
       uptimeRatio,
     })
-    bus.publish({ type: 'void', epochId: epoch.id, uptimeRatio })
+    bus.publish({ type: 'void', roundId: round.id, uptimeRatio })
     openNext(now)
     return
   }
 
-  // Charge the draw. Every active rig burns fuel whether or not it wins.
-  let pot = 0
-  for (const rig of activeBefore) {
-    const d = drawOf(rig.balance)
-    if (d <= 0) continue
-    db.setRigBalance(rig.id, rig.balance - d)
-    db.recordDraw(rig.id, epoch.id, d)
-    pot += d
-  }
-
-  const rigsAfter = db.activeRigs()
   const occupied = db.occupiedSectors()
-
   const strike = result.strikeSector
-  const strikers: Rig[] =
-    strike === null ? [] : rigsAfter.filter((r) => r.sector === strike)
 
+  const strikers = strike === null ? [] : spots.filter((s) => s.sector === strike)
   const claimantSectors = strike === null ? [] : riftClaimants(strike, occupied)
-  const claimants: Rig[] = rigsAfter.filter((r) => claimantSectors.includes(r.sector))
+  const claimants = spots.filter((s) => claimantSectors.includes(s.sector))
 
-  const alloc = splitPot(pot, strikers, claimants)
+  const alloc = splitPot(pot, strikers, claimants, spots)
 
-  // Treasury cut simply stays in the treasury wallet; no transfer needed.
-  const veinAdd = alloc.vein + alloc.veinRollover
-  if (veinAdd > 0) db.addToVein(veinAdd)
-
-  for (const rig of strikers) {
-    const amount = alloc.strikers.get(rig.id) ?? 0
-    if (amount > 0) {
-      db.recordPayout({
-        epochId: epoch.id,
-        wallet: rig.wallet,
-        rigId: rig.id,
-        kind: 'strike',
-        lamports: amount,
-      })
+  for (const [kind, map] of [
+    ['strike', alloc.strike],
+    ['rift', alloc.rift],
+    ['pool', alloc.pool],
+  ] as const) {
+    for (const [spotId, lamports] of map) {
+      if (lamports <= 0) continue
+      const spot = spots.find((s) => s.id === spotId)
+      if (!spot) continue
+      db.recordPayout({ roundId: round.id, wallet: spot.wallet, spotId, kind, lamports })
     }
   }
 
-  for (const rig of claimants) {
-    const amount = alloc.rift.get(rig.id) ?? 0
-    if (amount > 0) {
-      db.recordPayout({
-        epochId: epoch.id,
-        wallet: rig.wallet,
-        rigId: rig.id,
-        kind: 'rift',
-        lamports: amount,
-      })
-    }
-  }
+  db.setCarried(alloc.carried)
+  db.bumpDepth(spots.map((s) => s.id))
 
-  // The vein only cracks when a real graduation lands in the striking sector,
-  // and only when that sector actually holds rigs.
-  let veinPaid = 0
-  if (result.migrationMint && strikers.length > 0) {
-    const balance = db.veinBalance()
-    if (balance > 0) {
-      const veinAlloc = splitVein(balance, strikers)
-      for (const rig of strikers) {
-        const amount = veinAlloc.get(rig.id) ?? 0
-        if (amount > 0) {
-          db.recordPayout({
-            epochId: epoch.id,
-            wallet: rig.wallet,
-            rigId: rig.id,
-            kind: 'vein',
-            lamports: amount,
-          })
-        }
-      }
-      db.resetVein()
-      veinPaid = balance
-    }
-  }
-
-  db.bumpDepth(rigsAfter.map((r) => r.id))
-
-  db.closeEpoch(epoch.id, {
+  db.closeRound(round.id, {
     endedAt: now,
     status: 'resolved',
     strikeSector: strike,
     pot,
-    treasury: alloc.treasury,
-    veinAdd,
-    veinPaid,
+    carried: alloc.carried,
+    feeAccrued: accrued,
+    treasury: treasury ?? 0,
     migrationMint: result.migrationMint,
     mintCount: mintRows.length,
     uptimeRatio,
@@ -210,56 +196,20 @@ export function tick(now: number, uptimeRatio: number): void {
 
   bus.publish({
     type: 'strike',
-    epochId: epoch.id,
+    roundId: round.id,
     sector: strike,
     pot,
-    veinPaid,
     migrationMint: result.migrationMint,
   })
-  bus.publish({ type: 'vein', balance: db.veinBalance() })
   bus.publish({ type: 'rift', components: riftComponents(occupied) })
 
   openNext(now)
 }
 
 function openNext(now: number): void {
-  const id = db.openEpoch(now)
-  bus.publish({ type: 'tick', epochId: id, startedAt: now, endsAt: now + CONFIG.EPOCH_MS })
+  const id = db.openRound(now)
+  bus.publish({ type: 'tick', roundId: id, startedAt: now, endsAt: now + CONFIG.ROUND_MS })
   bus.publish({ type: 'grade', grades: new Array(CONFIG.SECTOR_COUNT).fill(0) })
-}
-
-// --------------------------------------------------------------- payouts
-
-let warnedNoTreasury = false
-
-export async function flushPayouts(): Promise<void> {
-  const pending = db.pendingPayouts(10)
-  if (pending.length === 0) return
-
-  if (!process.env.TREASURY_SECRET_KEY) {
-    if (!warnedNoTreasury) {
-      console.warn(
-        `[runtime] ${pending.length} payout(s) queued but TREASURY_SECRET_KEY is unset — ` +
-          `they stay pending and are visible as pending in the ledger.`,
-      )
-      warnedNoTreasury = true
-    }
-    return
-  }
-
-  try {
-    const signature = await sendBatch(
-      pending.map((p) => ({ to: p.wallet, lamports: p.lamports })),
-    )
-    db.markPayoutSent(
-      pending.map((p) => p.id),
-      signature,
-    )
-    console.log(`[runtime] paid ${pending.length} payout(s) in ${signature}`)
-  } catch (err) {
-    console.error('[runtime] payout batch failed, will retry:', (err as Error).message)
-    db.markPayoutFailed(pending.map((p) => p.id))
-  }
 }
 
 // ------------------------------------------------------------------ boot
@@ -272,82 +222,87 @@ export function startRuntime(): void {
   const ingest = new Ingest(handleEvent)
   ingest.start()
 
+  let ticking = false
   const tickTimer = setInterval(() => {
+    if (ticking) return
+    ticking = true
+
     const now = Date.now()
-    const epoch = db.currentEpoch()
-    const since = epoch?.started_at ?? now
-    try {
-      tick(now, ingest.uptimeRatio(since, now))
-    } catch (err) {
-      console.error('[runtime] tick failed:', (err as Error).message)
-    }
+    const round = db.currentRound()
+    const since = round?.started_at ?? now
+
+    // Only spend an RPC read when a round is actually due to close.
+    const due = round !== undefined && now >= round.started_at + CONFIG.ROUND_MS
+
+    void (due ? treasuryBalance() : Promise.resolve(null))
+      .then((treasury) => tick(now, ingest.uptimeRatio(since, now), treasury))
+      .catch((err) => console.error('[runtime] tick failed:', (err as Error).message))
+      .finally(() => {
+        ticking = false
+      })
   }, TICK_INTERVAL_MS)
 
-  const payoutTimer = setInterval(() => {
-    void flushPayouts()
-  }, PAYOUT_INTERVAL_MS)
-
-  globalRef.__nodeiRuntime = { ingest, tickTimer, payoutTimer }
+  globalRef.__nodeiRuntime = { ingest, tickTimer }
   console.log('[runtime] nodei online')
 }
 
 // ------------------------------------------------------------------ read
 
 export function getState() {
-  const epoch = db.currentEpoch()
-  const mints = epoch ? db.epochMints(epoch.id) : []
+  const round = db.currentRound()
+  const mints = round ? db.roundMints(round.id) : []
   const { grades } = computeGrades(mints.map(toMintEvent))
   const occupied = db.occupiedSectors()
-  const rigs = db.activeRigs()
+  const spots = db.liveSpots()
 
-  // Pot this epoch if it resolved right now: every active rig's draw.
-  const pot = rigs.reduce((sum, r) => sum + drawOf(r.balance), 0)
-  const strikerPool = Math.floor((pot * CONFIG.STRIKER_BPS) / 10_000)
+  const totalWeight = spots.reduce((sum, s) => sum + weightOf(s), 0)
 
-  /**
-   * Per-sector readout. `staked` is what it costs to be here — crowded sectors
-   * are expensive. `yieldX` is SOL returned per SOL staked if this sector
-   * strikes, so it falls as a sector fills up. Both are derived from live
-   * state; neither is a projection or an estimate dressed up as one.
-   */
   const sectors = Array.from({ length: CONFIG.SECTOR_COUNT }, (_, sector) => {
-    const here = rigs.filter((r) => r.sector === sector)
-    const staked = here.reduce((sum, r) => sum + r.balance, 0)
+    const holder = spots.find((s) => s.sector === sector)
     return {
       sector,
       grade: grades[sector] ?? 0,
-      staked,
-      rigs: here.length,
-      yieldX: staked > 0 ? strikerPool / staked : null,
+      claimed: !!holder,
+      wallet: holder?.wallet ?? null,
+      depth: holder?.depth ?? 0,
+      weight: holder ? weightOf(holder) : 0,
+      /** this holder's fraction of the pool leg */
+      poolShare: holder && totalWeight > 0 ? weightOf(holder) / totalWeight : 0,
     }
   })
 
   return {
     sectors,
-    pot,
-    epoch: epoch
-      ? {
-          id: epoch.id,
-          startedAt: epoch.started_at,
-          endsAt: epoch.started_at + CONFIG.EPOCH_MS,
-        }
+    round: round
+      ? { id: round.id, startedAt: round.started_at, endsAt: round.started_at + CONFIG.ROUND_MS }
       : null,
     grades,
     occupied: [...occupied],
     rifts: riftComponents(occupied),
-    rigs,
-    vein: db.veinBalance(),
+    spots,
+    carried: db.getCarried(),
+    owed: db.totalOwed(),
+    paid: db.totalPaid(),
+    leaderboard: db.owedByWallet().slice(0, 20),
     recentMints: db.recentMints(40),
     recentMigrations: db.recentMigrations(10),
-    epochs: db.recentEpochs(20),
+    rounds: db.recentRounds(20),
+    treasury: {
+      address: TREASURY_ADDRESS,
+      lastSeen: db.getLastTreasury(),
+    },
     config: {
       gridSize: CONFIG.GRID_SIZE,
       sectorCount: CONFIG.SECTOR_COUNT,
-      epochMs: CONFIG.EPOCH_MS,
-      drawBps: CONFIG.DRAW_BPS,
-      minDeployLamports: CONFIG.MIN_DEPLOY_LAMPORTS,
+      roundMs: CONFIG.ROUND_MS,
+      minTokens: CONFIG.MIN_TOKEN_BALANCE,
+      feeShareBps: CONFIG.FEE_SHARE_BPS,
+      strikeBps: CONFIG.STRIKE_BPS,
+      riftBps: CONFIG.RIFT_BPS,
+      poolBps: CONFIG.POOL_BPS,
       depthCap: CONFIG.DEPTH_CAP,
       depthK: CONFIG.DEPTH_K,
+      tokenMint: TOKEN_MINT,
     },
     connected: globalRef.__nodeiRuntime?.ingest.connected ?? false,
   }

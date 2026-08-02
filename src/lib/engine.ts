@@ -10,14 +10,14 @@ export type MintEvent = {
 
 export type MigrationEvent = { mint: string; sector: number }
 
-export type EpochInput = {
+export type RoundInput = {
   mints: MintEvent[]
   migrations: MigrationEvent[]
-  /** fraction of the epoch the feed was connected, 0..1 */
+  /** fraction of the round the feed was connected, 0..1 */
   uptimeRatio: number
 }
 
-export type EpochResult = {
+export type RoundResult = {
   status: 'resolved' | 'void'
   strikeSector: number | null
   grades: number[]
@@ -27,7 +27,7 @@ export type EpochResult = {
 
 /**
  * Grade is the count of mints landing in a sector, with one mint counted per
- * creator per sector per epoch.
+ * creator per sector per round.
  *
  * The field is deliberately contestable — anyone can push a sector by paying
  * to launch tokens into it, visibly, in FLOW. The per-creator cap only defeats
@@ -54,11 +54,11 @@ export function computeGrades(mints: MintEvent[]): {
 }
 
 /**
- * Resolve one epoch. Highest grade strikes; ties go to whichever sector
+ * Resolve one round. Highest grade strikes; ties go to whichever sector
  * REACHED the winning count first, which makes it a footrace rather than a
  * coin flip and keeps the outcome derivable from observed order alone.
  */
-export function resolveEpoch(input: EpochInput): EpochResult {
+export function resolveRound(input: RoundInput): RoundResult {
   const { grades, counted } = computeGrades(input.mints)
 
   if (input.uptimeRatio < 1 - CONFIG.VOID_THRESHOLD) {

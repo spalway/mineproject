@@ -3,15 +3,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type StreamEvent =
-  | { type: 'mint'; mint: string; sector: number; symbol: string | null; name: string | null; at: number }
+  | {
+      type: 'mint'
+      mint: string
+      sector: number
+      symbol: string | null
+      name: string | null
+      at: number
+    }
   | { type: 'migration'; mint: string; sector: number; at: number }
   | { type: 'grade'; grades: number[] }
-  | { type: 'tick'; epochId: number; startedAt: number; endsAt: number }
-  | { type: 'strike'; epochId: number; sector: number | null; pot: number; veinPaid: number; migrationMint: string | null }
-  | { type: 'void'; epochId: number; uptimeRatio: number }
-  | { type: 'vein'; balance: number }
+  | { type: 'tick'; roundId: number; startedAt: number; endsAt: number }
+  | {
+      type: 'strike'
+      roundId: number
+      sector: number | null
+      pot: number
+      migrationMint: string | null
+    }
+  | { type: 'void'; roundId: number; uptimeRatio: number }
   | { type: 'rift'; components: number[][] }
-  | { type: 'deploy'; wallet: string; sector: number; lamports: number }
+  | { type: 'claim'; wallet: string; sector: number }
+  | { type: 'release'; wallet: string; sector: number }
 
 export type MintRow = {
   mint: string
@@ -22,65 +35,72 @@ export type MintRow = {
   counted: number
 }
 
-export type Rig = {
+export type Spot = {
   id: number
   wallet: string
   sector: number
-  balance: number
   depth: number
+  tokens: number
 }
 
-export type EpochRow = {
+export type SectorStat = {
+  sector: number
+  grade: number
+  claimed: boolean
+  wallet: string | null
+  depth: number
+  weight: number
+  poolShare: number
+}
+
+export type RoundRow = {
   id: number
   started_at: number
   ended_at: number | null
   status: string
   strike_sector: number | null
   pot_lamports: number
-  vein_paid_lamports: number
-  migration_mint: string | null
+  carried_lamports: number
+  fee_accrued_lamports: number
+  treasury_lamports: number
   mint_count: number
   uptime_ratio: number
 }
 
-export type SectorStat = {
-  sector: number
-  grade: number
-  /** lamports staked in this sector */
-  staked: number
-  rigs: number
-  /** SOL back per SOL staked if this sector strikes; null when empty */
-  yieldX: number | null
-}
-
 export type State = {
   sectors: SectorStat[]
-  /** lamports the pot would hold if the epoch resolved right now */
-  pot: number
-  epoch: { id: number; startedAt: number; endsAt: number } | null
+  round: { id: number; startedAt: number; endsAt: number } | null
   grades: number[]
   occupied: number[]
   rifts: number[][]
-  rigs: Rig[]
-  vein: number
+  spots: Spot[]
+  carried: number
+  owed: number
+  paid: number
+  leaderboard: { wallet: string; lamports: number; rounds: number }[]
   recentMints: MintRow[]
   recentMigrations: { mint: string; sector: number; received_at: number }[]
-  epochs: EpochRow[]
+  rounds: RoundRow[]
+  treasury: { address: string; lastSeen: number | null }
   config: {
     gridSize: number
     sectorCount: number
-    epochMs: number
-    drawBps: number
-    minDeployLamports: number
+    roundMs: number
+    minTokens: number
+    feeShareBps: number
+    strikeBps: number
+    riftBps: number
+    poolBps: number
     depthCap: number
     depthK: number
+    tokenMint: string
   }
   connected: boolean
 }
 
 /**
  * Live field state. Applies stream events immediately for responsiveness, and
- * resyncs from /api/state on every epoch boundary so nothing can drift.
+ * resyncs from /api/state on every round boundary so nothing can drift.
  */
 export function useStream() {
   const [state, setState] = useState<State | null>(null)
@@ -140,10 +160,6 @@ export function useStream() {
           setState((prev) => (prev ? { ...prev, grades: e.grades } : prev))
           break
 
-        case 'vein':
-          setState((prev) => (prev ? { ...prev, vein: e.balance } : prev))
-          break
-
         case 'rift':
           setState((prev) => (prev ? { ...prev, rifts: e.components } : prev))
           break
@@ -151,13 +167,14 @@ export function useStream() {
         case 'strike':
           setLastStrike(e.sector)
           if (strikeTimer.current) clearTimeout(strikeTimer.current)
-          strikeTimer.current = setTimeout(() => setLastStrike(null), 3_000)
+          strikeTimer.current = setTimeout(() => setLastStrike(null), 4_000)
           void resync()
           break
 
         case 'tick':
         case 'void':
-        case 'deploy':
+        case 'claim':
+        case 'release':
         case 'migration':
           void resync()
           break

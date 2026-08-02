@@ -185,23 +185,20 @@
 html {
   color-scheme: dark;
   background: var(--pj-bg);
-  /* Pixelta's glyphs sit small in the em box, so everything rem-based needs a
-     larger root to stay legible. */
-  font-size: 18px;
 }
 
 body {
   background: var(--pj-bg);
   color: var(--pj-green);
-  font-family: var(--font-pixelta), ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  font-family: var(--font-mono), ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
   font-variant-ligatures: none;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
-/* Pixelta is a pixel face, so it renders crisper without smoothing. */
-body {
-  -webkit-font-smoothing: none;
-  -moz-osx-font-smoothing: unset;
+/* Headings and labels carry weight instead of colour, so the palette stays
+   at three signals. */
+h1, h2, h3, th, .pj-label {
+  font-weight: 700;
 }
 
 /* Every glyph on the site occupies one cell. No proportional type anywhere. */

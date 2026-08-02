@@ -1,35 +1,35 @@
 import { CONFIG } from './config'
 
-export type Rig = {
+export type Spot = {
   id: number
   wallet: string
   sector: number
-  /** lamports */
-  balance: number
-  /** consecutive epochs survived */
+  /** consecutive rounds held */
   depth: number
+  /** token balance at last check, for display and eligibility */
+  tokens: number
 }
 
 export type Allocation = {
-  treasury: number
-  vein: number
-  /** rigId -> lamports */
-  strikers: Map<number, number>
-  /** rigId -> lamports */
+  /** spotId -> lamports */
+  strike: Map<number, number>
   rift: Map<number, number>
-  /** lamports routed to the vein because the striking sector was unoccupied */
-  veinRollover: number
+  pool: Map<number, number>
+  /** lamports with nowhere to go, carried into the next round */
+  carried: number
 }
 
-/** Depth multiplies share weight, capped at 3x. */
-export function weightOf(rig: Rig): number {
-  return rig.balance * (1 + Math.min(rig.depth, CONFIG.DEPTH_CAP) / CONFIG.DEPTH_K)
+/**
+ * Depth multiplies share weight up to 3x. There is no stake, so weight comes
+ * purely from how long a spot has been held — churning your spot costs you.
+ */
+export function weightOf(spot: Spot): number {
+  return 1 + Math.min(spot.depth, CONFIG.DEPTH_CAP) / CONFIG.DEPTH_K
 }
 
 /**
  * Split `total` lamports across `weights` using largest-remainder, so the
- * result sums to `total` EXACTLY. Money is integer lamports end to end —
- * never introduce a float here or the pot stops balancing.
+ * result sums to `total` EXACTLY. Money is integer lamports end to end.
  */
 export function allocate(total: number, weights: number[]): number[] {
   const sum = weights.reduce((a, b) => a + b, 0)
@@ -49,50 +49,62 @@ export function allocate(total: number, weights: number[]): number[] {
   return out
 }
 
-/**
- * Split an epoch pot per spec §3.3.
- *
- * The unoccupied-strike path matters more than it looks: the highest-grade
- * sector often holds no rigs at all, and an empty sector belongs to no rift
- * component, so there are no claimants either. That 90% goes to the vein.
- */
-export function splitPot(pot: number, strikers: Rig[], claimants: Rig[]): Allocation {
-  const treasury = Math.floor((pot * CONFIG.TREASURY_BPS) / 10_000)
-  const vein = Math.floor((pot * CONFIG.VEIN_BPS) / 10_000)
-  const distributable = pot - treasury - vein
-
-  const strikerMap = new Map<number, number>()
-  const riftMap = new Map<number, number>()
-
-  if (strikers.length === 0) {
-    return { treasury, vein, strikers: strikerMap, rift: riftMap, veinRollover: distributable }
-  }
-
-  let riftPool = 0
-  if (claimants.length > 0) {
-    riftPool = Math.min(Math.floor((pot * CONFIG.RIFT_BPS) / 10_000), distributable)
-  }
-  const strikerPool = distributable - riftPool
-
-  const strikerAlloc = allocate(strikerPool, strikers.map(weightOf))
-  strikers.forEach((r, i) => strikerMap.set(r.id, strikerAlloc[i]))
-
-  const riftAlloc = allocate(riftPool, claimants.map(weightOf))
-  claimants.forEach((r, i) => riftMap.set(r.id, riftAlloc[i]))
-
-  return { treasury, vein, strikers: strikerMap, rift: riftMap, veinRollover: 0 }
+function distribute(total: number, spots: Spot[], into: Map<number, number>): void {
+  const alloc = allocate(total, spots.map(weightOf))
+  spots.forEach((s, i) => into.set(s.id, alloc[i]))
 }
 
-/** The vein belongs to strikers alone. Rift claimants never draw from it. */
-export function splitVein(veinBalance: number, strikers: Rig[]): Map<number, number> {
+/**
+ * Split a round pot.
+ *
+ * `strikers` hold the sector that graded highest, `claimants` are within two
+ * hops of it along a rift, and `everyone` is every live spot including the
+ * first two groups — the pool share is the baseline that makes this a pool
+ * rather than a lottery.
+ *
+ * Any share with no eligible recipients is carried into the next round rather
+ * than silently vanishing.
+ */
+export function splitPot(
+  pot: number,
+  strikers: Spot[],
+  claimants: Spot[],
+  everyone: Spot[],
+): Allocation {
+  const strike = new Map<number, number>()
+  const rift = new Map<number, number>()
+  const pool = new Map<number, number>()
+
+  const strikeShare = Math.floor((pot * CONFIG.STRIKE_BPS) / 10_000)
+  const riftShare = Math.floor((pot * CONFIG.RIFT_BPS) / 10_000)
+  // Pool absorbs the rounding dust so the three shares reconstruct the pot.
+  const poolShare = Math.max(0, pot - strikeShare - riftShare)
+
+  let carried = 0
+
+  if (strikers.length > 0) distribute(strikeShare, strikers, strike)
+  else carried += strikeShare
+
+  if (claimants.length > 0) distribute(riftShare, claimants, rift)
+  else carried += riftShare
+
+  if (everyone.length > 0) distribute(poolShare, everyone, pool)
+  else carried += poolShare
+
+  return { strike, rift, pool, carried }
+}
+
+/** Total owed per spot across all three shares. */
+export function totalPerSpot(alloc: Allocation): Map<number, number> {
   const out = new Map<number, number>()
-  if (strikers.length === 0) return out
-  const alloc = allocate(veinBalance, strikers.map(weightOf))
-  strikers.forEach((r, i) => out.set(r.id, alloc[i]))
+  for (const m of [alloc.strike, alloc.rift, alloc.pool]) {
+    for (const [id, amount] of m) out.set(id, (out.get(id) ?? 0) + amount)
+  }
   return out
 }
 
-/** Lamports burned from a rig into the pot this epoch. */
-export function drawOf(balance: number): number {
-  return Math.floor((balance * CONFIG.DRAW_BPS) / 10_000)
+/** Share of newly accrued creator fees that flows into a round pot. */
+export function feeShare(accrued: number): number {
+  if (accrued <= 0) return 0
+  return Math.floor((accrued * CONFIG.FEE_SHARE_BPS) / 10_000)
 }

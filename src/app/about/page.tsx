@@ -29,62 +29,83 @@ const SECTIONS = [
     ),
   },
   {
-    id: 'grade',
-    title: 'grade',
+    id: 'claim',
+    title: 'claim',
     body: (
       <>
         <p>
-          each epoch runs 120 seconds. every launch that lands in a sector raises
-          its grade by one, capped at one mint per creator per sector so a single
-          wallet cannot spam a cell. the highest grade strikes.
+          hold 10,000 nodei and you can claim one open sector. claiming is a
+          signed message, not a transaction: no lamports move, you pay no network
+          fee, and the wallet prompt says so in plain text.
         </p>
         <p className="mt-3">
-          ties go to whichever sector reached the winning count first, which
-          makes contested epochs a footrace rather than a coin flip. epoch length
-          is not a vibe: at 60 seconds and the measured launch rate, 29% of
-          epochs would have finished with a winning grade of 1 and the strike
-          would collapse to whoever caught the first mint. at 120 seconds that
-          falls to 1.4%.
+          the server verifies the signature, then reads your token balance
+          straight from chain. it never takes the client&apos;s word for what a
+          wallet holds. one live spot per wallet, and every spot is re-checked at
+          the start of each round: sell below the minimum and the sector opens
+          back up.
         </p>
       </>
     ),
   },
   {
-    id: 'rig',
-    title: 'rig',
+    id: 'rounds',
+    title: 'rounds',
     body: (
       <>
         <p>
-          a deploy creates a rig, and the rig persists until you pull it. each
-          epoch it burns 1% of its balance into the pot, so it consumes fuel
-          whether or not it wins, and gains one depth.
+          a round runs for ten minutes. every launch that lands in a sector
+          raises its grade by one, capped at one mint per creator per sector so a
+          single wallet cannot spam a cell. the highest grade strikes, and ties
+          go to whichever sector reached the winning count first.
         </p>
         <p className="mt-3">
-          depth multiplies your share weight up to 3x over 60 epochs. at a 1%
-          draw a rig halves in about 69 epochs, so weight peaks just as holding
-          starts getting expensive. striking does not reset depth. pulling out
-          does, all the way to zero.
+          the round pot is split three ways:{' '}
+          <span className="text-pj-green">50%</span> to the striking sector,{' '}
+          <span className="text-pj-green">20%</span> across the rift around it,
+          and <span className="text-pj-green">30%</span> to every claimed spot on
+          the board. that last leg is what makes this a pool rather than a
+          lottery — holding a spot always earns something.
+        </p>
+        <p className="mt-3">
+          any leg with no eligible recipients is carried into the next round
+          rather than vanishing. an empty board banks the whole pot.
         </p>
       </>
     ),
   },
   {
-    id: 'yield',
-    title: 'yield',
+    id: 'fees',
+    title: 'fees',
     body: (
       <>
         <p>
-          each cell on the field shows what it costs to be there and what it pays
-          if it hits. <span className="text-pj-green">staked</span> is the sol
-          already sitting in that sector.{' '}
-          <span className="text-pj-green">yield</span> is sol returned per sol
-          staked if that sector strikes this epoch.
+          the pot comes from pump.fun creator fees. those accrue to the treasury
+          wallet, and <span className="text-pj-green">70%</span> of whatever
+          arrives between two rounds becomes that round&apos;s pot.
         </p>
         <p className="mt-3">
-          yield falls as a sector fills, because the striker pool is split by
-          weight across everyone in it. crowded sectors pay less. empty sectors
-          pay infinitely well and almost never strike. that tension is the whole
-          game.
+          accrual is measured as the treasury&apos;s balance change across the
+          round, read from chain at each close. a withdrawal counts as zero
+          rather than as a negative pot. the treasury address is published on the
+          vein page so the flows can be checked independently.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'depth',
+    title: 'depth',
+    body: (
+      <>
+        <p>
+          every round your spot survives adds one depth. depth multiplies your
+          share weight up to 3x over 36 rounds, roughly six hours.
+        </p>
+        <p className="mt-3">
+          depth costs nothing to accrue. there is no stake, no burn, and nothing
+          at risk — the only way to lose it is to release your spot or fall below
+          the minimum balance. anything already owed stays owed either way.
         </p>
       </>
     ),
@@ -95,35 +116,15 @@ const SECTIONS = [
     body: (
       <>
         <p>
-          occupied sectors that touch are fractured together, and components are
+          claimed sectors that touch are fractured together, and components are
           counted across every wallet rather than per-wallet. you benefit from
-          strangers deploying beside you.
+          strangers claiming beside you.
         </p>
         <p className="mt-3">
-          when a sector strikes, occupied sectors within two hops along the
-          fracture claim 15% of the pot while strikers take 75%. the two-hop cap
-          is deliberate. without it a board-spanning component would pay everyone
-          and locality would stop meaning anything.
-        </p>
-      </>
-    ),
-  },
-  {
-    id: 'vein',
-    title: 'vein',
-    body: (
-      <>
-        <p>
-          the vein takes 6% of every pot. it also swallows the entire
-          distributable pot whenever the striking sector holds no rigs, which
-          early on is most epochs, and that is what grows it into something worth
-          chasing.
-        </p>
-        <p className="mt-3">
-          it pays out only when a real bonding-curve graduation lands inside the
-          striking sector, split among that sector&apos;s rigs by weight. rift
-          claimants never draw from it. nothing about it can be triggered on
-          demand.
+          when a sector strikes, claimed sectors within two hops along the
+          fracture share the rift leg. the two-hop cap is deliberate. without it
+          a board-spanning component would pay everyone and locality would stop
+          meaning anything.
         </p>
       </>
     ),
@@ -134,9 +135,20 @@ const SECTIONS = [
     body: (
       <ul className="space-y-2">
         <li>
-          running on <span className="text-pj-green">devnet</span>. payouts are
-          signed by a server-held treasury key, so custody is a trust assumption,
-          not a trustless guarantee.
+          <span className="pj-vein">payouts are manual.</span> rounds compute what
+          each wallet is owed and write it to a public ledger. settlement is sent
+          by hand, and a row only reads paid once a real signature is attached.
+          nothing on this site is an automatic or guaranteed transfer.
+        </li>
+        <li>
+          the 70% share is an operator commitment, not an on-chain rule. there is
+          no contract enforcing it.
+        </li>
+        <li>
+          this app holds <span className="text-pj-green">no private key</span>.
+          claiming is signature-only, so nothing here can move your funds — the
+          worst a compromise of the server could do is lie about what is owed,
+          and the ledger is public.
         </li>
         <li>
           grade is contestable. anyone can push a sector by paying to launch
@@ -149,8 +161,8 @@ const SECTIONS = [
         </li>
         <li>
           the launch feed is pumpportal&apos;s free tier with no sla. if it drops
-          for more than 20% of an epoch, that epoch voids: no draw charged, no
-          strike, depth still accrues. we do not invent mints to cover a gap.
+          for more than 20% of a round, that round voids: no sector strikes and
+          the pot rolls forward whole. we do not invent mints to cover a gap.
         </li>
       </ul>
     ),
@@ -166,16 +178,17 @@ export default function About() {
         <div className="flex flex-col gap-10 lg:flex-row">
           <article className="min-w-0 flex-1 space-y-10">
             <header>
-              <h1 className="text-lg tracking-[0.25em]">about</h1>
+              <h1 className="text-lg font-bold tracking-[0.25em]">about</h1>
               <p className="pj-dim mt-2 max-w-2xl text-xs leading-relaxed">
-                nodei turns the pump.fun launch stream into a field you can take
-                a position in. seven short sections, one idea each.
+                nodei is a collaborative mining field over the pump.fun launch
+                stream. hold the token, claim a sector, earn a share of creator
+                fees every ten minutes. seven short sections, one idea each.
               </p>
             </header>
 
             {SECTIONS.map((s) => (
               <section key={s.id} id={s.id} className="scroll-mt-16 space-y-2">
-                <h2 className="border-b border-pj-faint pb-2 text-sm tracking-[0.2em]">
+                <h2 className="border-b border-pj-faint pb-2 text-sm font-bold tracking-[0.2em]">
                   {s.title}
                 </h2>
                 <div className="max-w-2xl text-xs leading-relaxed text-pj-dim">{s.body}</div>
@@ -190,7 +203,7 @@ export default function About() {
           </article>
 
           <nav className="lg:sticky lg:top-16 lg:h-fit lg:w-40">
-            <div className="pj-dim mb-2 text-[10px]">contents</div>
+            <div className="pj-label pj-dim mb-2 text-[10px]">contents</div>
             <ul className="space-y-1 text-xs">
               {SECTIONS.map((s) => (
                 <li key={s.id}>
