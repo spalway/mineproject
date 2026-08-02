@@ -197,7 +197,7 @@ export default function About() {
 
             <footer className="border-t border-pj-faint pt-4">
               <Link href="/" className="text-xs hover:text-white">
-                back to the field
+                back to the pool
               </Link>
             </footer>
           </article>

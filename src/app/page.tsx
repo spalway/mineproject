@@ -6,6 +6,7 @@ import { Stat } from '@/components/shared/Stat'
 import { Grid } from '@/components/field/Grid'
 import { RoundClock } from '@/components/field/RoundClock'
 import { ClaimBar, useWalletInfo } from '@/components/field/ClaimBar'
+import { MinerCat } from '@/components/shared/MinerCat'
 import { sol } from '@/lib/format'
 
 export default function FieldPage() {
@@ -32,6 +33,8 @@ export default function FieldPage() {
               </span>{' '}
               of newly accrued creator fees is split across the field.
             </p>
+
+            <MinerCat />
 
             <div className="flex flex-wrap items-end justify-center gap-x-10 gap-y-4">
               <Stat label="claimed" value={`${claimedCount}/64`} />
