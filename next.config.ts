@@ -1,7 +1,9 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  // `ws` holds a long-lived handle and must not be bundled. `node:sqlite` is
+  // a builtin, so it needs no entry here.
+  serverExternalPackages: ['ws'],
+}
 
-export default nextConfig;
+export default nextConfig

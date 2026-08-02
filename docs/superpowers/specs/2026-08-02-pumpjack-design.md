@@ -44,12 +44,22 @@ A *rift* is a fracture propagating through rock, not a mine tunnel. Chosen delib
 
 ### 3.1 Grade and strike
 
-Each epoch lasts 60 seconds. During an epoch:
+Each epoch lasts 120 seconds. During an epoch:
 
 - `grade[s]` = count of new pump.fun mints observed landing in sector `s`
 - The sector with the highest grade **strikes**
 
-At current pump.fun throughput (~20 mints/epoch across 64 sectors) a typical winning grade is 2–3. This is intentional: a tight, legible race reads far better than a blowout, and individual token arrivals stay visible in the UI.
+**Epoch length is calibrated against measured throughput, not guessed.** A 240-second live capture gave **13.3 mints/min**. Monte-Carlo over that rate (`scripts/analyze-rate.mjs`):
+
+| Grid | Epoch | Mints/epoch | Avg winning grade | Degenerate (max ≤ 1) |
+|---|---|---|---|---|
+| 8×8 | 60s | 13.3 | 1.79 | **29.2%** |
+| 8×8 | 120s | 26.5 | 2.47 | 1.4% |
+| 6×6 | 120s | 26.5 | 3.01 | 0.1% |
+
+A *degenerate* epoch is one where the winning grade is 1: the strike collapses to "whichever sector caught the first mint of the epoch" and the grid stops being a contest. At 60 seconds that happens in nearly a third of epochs, which is unacceptable for a design whose entire premise is that the grid is the product. 120 seconds fixes it while keeping the 8×8 field, and 64 cells gives rifts room to propagate visually. A typical winning grade is 2–3: tight and legible, with individual arrivals still visible in the UI.
+
+Throughput varies with market conditions. If the sustained rate drops materially below ~10 mints/min, either `EPOCH_MS` or `GRID_SIZE` needs re-tuning — re-run the analysis script rather than guessing.
 
 **Tie-break — first to grade.** Among sectors tied at the winning count `k`, the winner is the sector whose `k`-th mint arrived earliest. Deterministic, derived only from observed arrival order, unforgeable by any participant.
 
@@ -68,7 +78,7 @@ ORE wipes losing stakes every round, so nothing persists across rounds and vesti
 weight = balance × (1 + min(depth, 60) / 30)
 ```
 
-Depth caps at 60 epochs (one hour) for a maximum 3× weight multiplier. Withdrawing and redeploying resets depth to zero. **Striking does not reset depth** — a winning rig keeps running and keeps its accrual.
+Depth caps at 60 epochs (two hours at a 120s epoch) for a maximum 3× weight multiplier. Withdrawing and redeploying resets depth to zero. **Striking does not reset depth** — a winning rig keeps running and keeps its accrual.
 
 A wallet may hold multiple rigs in the same sector. Each deploy is a distinct rig with its own balance and its own depth clock, keyed by its deploy signature.
 
@@ -107,7 +117,7 @@ The vein accrues 6% of every epoch pot and pays out **only** when a real migrati
 
 If the striking sector is unoccupied the vein does not pay, even when a migration lands there. It keeps accruing. Rift claimants never draw from the vein — it belongs to strikers alone.
 
-Roughly 1% of pump.fun launches graduate, so this is rare, dramatic, on-chain, and unfakeable.
+The same 240s capture recorded 3 migrations alongside 53 creates. At ~0.75 migrations per minute across 64 sectors, a migration lands in the striking sector roughly once every 40–90 epochs — a jackpot every hour or two. Rare, dramatic, on-chain, and unfakeable.
 
 ### 3.6 Void epochs
 
@@ -133,7 +143,7 @@ One cheap guard: **a single creator address contributes at most 1 counted mint p
 | Constant | Value |
 |---|---|
 | `GRID` | 8 × 8 = 64 sectors |
-| `EPOCH_MS` | 60_000 |
+| `EPOCH_MS` | 120_000 |
 | `DRAW_BPS` | 100 (1% of rig balance per epoch) |
 | `TREASURY_BPS` | 400 |
 | `VEIN_BPS` | 600 |

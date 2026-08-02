@@ -257,6 +257,16 @@ export function epochMigrations(epochId: number): { mint: string; sector: number
     .all(epochId) as { mint: string; sector: number }[]
 }
 
+/**
+ * Flag mints that did not contribute to grade (per-creator cap, spec §3.7).
+ * Stored rather than recomputed so the cap is auditable instead of invisible.
+ */
+export function markUncounted(mints: string[]): void {
+  if (mints.length === 0) return
+  const marks = mints.map(() => '?').join(',')
+  getDb().prepare(`UPDATE mints SET counted = 0 WHERE mint IN (${marks})`).run(...mints)
+}
+
 export function recentMints(limit = 50): MintRow[] {
   return getDb()
     .prepare('SELECT * FROM mints ORDER BY received_at DESC LIMIT ?')

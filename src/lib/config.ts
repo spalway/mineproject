@@ -7,8 +7,15 @@ export const CONFIG = {
   GRID_SIZE: 8,
   SECTOR_COUNT: 64,
 
-  /** One epoch of the field. */
-  EPOCH_MS: 60_000,
+  /**
+   * One epoch of the field.
+   *
+   * Calibrated against a real 240s capture: pump.fun emits ~13.3 mints/min, so
+   * a 60s epoch over 64 sectors leaves 29% of epochs with a winning grade of 1
+   * — the strike collapses to "whoever caught the first mint" and the grid
+   * stops mattering. At 120s that drops to 1.4%. See scripts/analyze-rate.mjs.
+   */
+  EPOCH_MS: 120_000,
 
   /** Fraction of a rig's balance burned into the pot each epoch. */
   DRAW_BPS: 100,
