@@ -43,9 +43,10 @@ export function TreasuryPanel({
             negative pot.
           </li>
           <li>
-            rounds compute what each wallet is <span className="pj-vein">owed</span>.
-            payouts are sent by hand, and nothing shows as paid until a signature
-            is attached.
+            rounds record what each wallet has earned. a row moves from{' '}
+            <span className="pj-vein">owed</span> to{' '}
+            <span className="text-pj-green">paid</span> once the treasury sends it
+            and its signature is attached.
           </li>
           <li>
             the {feeShareBps / 100}% share is an operator commitment, not an

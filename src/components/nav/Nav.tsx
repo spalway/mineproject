@@ -5,13 +5,14 @@ import { usePathname } from 'next/navigation'
 import { ConnectButton } from '@/components/wallet/ConnectButton'
 import { PixelX } from '@/components/shared/PixelX'
 
-const TWITTER_URL = process.env.NEXT_PUBLIC_TWITTER_URL ?? 'https://x.com'
+const TWITTER_HANDLE = process.env.NEXT_PUBLIC_TWITTER_HANDLE ?? 'nodeimines'
+const TWITTER_URL = `https://x.com/${TWITTER_HANDLE}`
 
 const LINKS = [
   { href: '/', label: 'pool' },
   { href: '/launches', label: 'launches' },
   { href: '/position', label: 'position' },
-  { href: '/crews', label: 'crews' },
+  { href: '/strikes', label: 'strikes' },
   { href: '/treasury', label: 'treasury' },
   { href: '/docs', label: 'docs' },
 ]
@@ -47,11 +48,11 @@ export function Nav() {
             href={TWITTER_URL}
             target="_blank"
             rel="noreferrer"
-            aria-label="nodei on X"
-            className="flex items-center gap-2 border border-pj-faint px-3 py-1 text-pj-dim transition-colors hover:border-pj-green hover:text-pj-green"
+            aria-label={`nodei on X, @${TWITTER_HANDLE}`}
+            className="flex items-center gap-2 border border-pj-faint px-3 py-1 text-pj-green transition-colors hover:border-pj-green hover:bg-pj-green/10"
           >
             <PixelX />
-            <span className="font-bold">follow</span>
+            <span className="font-bold">@{TWITTER_HANDLE}</span>
           </a>
           <ConnectButton />
         </div>

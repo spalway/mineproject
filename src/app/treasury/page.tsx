@@ -6,8 +6,8 @@ import { TreasuryPanel } from '@/components/vein/TreasuryPanel'
 export default function VeinPage() {
   return (
     <Screen
-      title="vein"
-      blurb="where the money comes from. creator fees accrue to the treasury, a share of each round's inflow becomes that round's pot, and the ledger records what every wallet is owed. settlement is manual."
+      title="treasury"
+      blurb="where the money comes from. creator fees accrue to the treasury wallet, a share of each round's inflow becomes that round's pot, and the ledger records what every wallet has earned. every settlement carries its signature."
     >
       {(state) => (
         <TreasuryPanel

@@ -87,8 +87,29 @@ const SECTIONS = [
         <p className="mt-3">
           accrual is measured as the treasury&apos;s balance change across the
           round, read from chain at each close. a withdrawal counts as zero
-          rather than as a negative pot. the treasury address is published on
-          the treasury page so the flows can be checked independently.
+          rather than as a negative pot. the treasury address is published on the
+          treasury page so the flows can be checked independently.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'settlement',
+    title: 'settlement',
+    body: (
+      <>
+        <p>
+          each round records what every wallet has earned in a public ledger.
+          your position page shows the running total, split by which leg it came
+          from, and the treasury page shows the same figures board-wide.
+        </p>
+        <p className="mt-3">
+          the treasury sends distributions against that ledger. a row moves from{' '}
+          <span className="pj-vein">owed</span> to{' '}
+          <span className="text-pj-green">paid</span> once its transaction
+          signature is attached, so every settlement can be followed on chain.
+          amounts already earned stay on the ledger whether or not you keep your
+          spot.
         </p>
       </>
     ),
@@ -105,7 +126,7 @@ const SECTIONS = [
         <p className="mt-3">
           depth costs nothing to accrue. there is no stake, no burn, and nothing
           at risk — the only way to lose it is to release your spot or fall below
-          the minimum balance. anything already owed stays owed either way.
+          the minimum balance.
         </p>
       </>
     ),
@@ -124,52 +145,47 @@ const SECTIONS = [
           when a sector strikes, claimed sectors within two hops along the
           fracture share the rift leg. the two-hop cap is deliberate. without it
           a board-spanning component would pay everyone and locality would stop
-          meaning anything.
+          meaning anything. the strikes page shows the live fracture map.
         </p>
       </>
     ),
   },
   {
-    id: 'honest',
-    title: 'what this is not',
+    id: 'limits',
+    title: 'limits',
     body: (
-      <ul className="space-y-2">
-        <li>
-          <span className="pj-vein">payouts are manual.</span> rounds compute what
-          each wallet is owed and write it to a public ledger. settlement is sent
-          by hand, and a row only reads paid once a real signature is attached.
-          nothing on this site is an automatic or guaranteed transfer.
-        </li>
-        <li>
-          the 70% share is an operator commitment, not an on-chain rule. there is
-          no contract enforcing it.
-        </li>
-        <li>
-          this app holds <span className="text-pj-green">no private key</span>.
-          claiming is signature-only, so nothing here can move your funds — the
-          worst a compromise of the server could do is lie about what is owed,
-          and the ledger is public.
-        </li>
-        <li>
-          grade is contestable. anyone can push a sector by paying to launch
-          tokens into it. that is a feature, it costs real sol, and you can watch
-          it happen live on the launches page.
-        </li>
-        <li>
-          arrival order uses our ingest receipt time, not chain time. tie breaks
-          depend on when we observed a launch.
-        </li>
-        <li>
-          the launch feed is pumpportal&apos;s free tier with no sla. if it drops
-          for more than 20% of a round, that round voids: no sector strikes and
-          the pot rolls forward whole. we do not invent mints to cover a gap.
-        </li>
-      </ul>
+      <>
+        <p>the things worth knowing before you hold a spot.</p>
+        <ul className="mt-3 space-y-2">
+          <li>
+            the 70% share is an operator commitment, not an on-chain rule. there
+            is no contract enforcing it.
+          </li>
+          <li>
+            this app holds <span className="text-pj-green">no private key</span>.
+            claiming is signature-only, so nothing here can move your funds.
+          </li>
+          <li>
+            grade is contestable. anyone can push a sector by paying to launch
+            tokens into it. that is a feature, it costs real sol, and you can
+            watch it happen live on the launches page.
+          </li>
+          <li>
+            arrival order uses our ingest receipt time, not chain time. tie
+            breaks depend on when we observed a launch.
+          </li>
+          <li>
+            the launch feed has no sla. if it drops for more than a fifth of a
+            round, that round goes dark: nothing strikes and the pot rolls
+            forward whole. we do not invent launches to cover a gap.
+          </li>
+        </ul>
+      </>
     ),
   },
 ]
 
-export default function About() {
+export default function Docs() {
   return (
     <>
       <Nav />
@@ -178,11 +194,11 @@ export default function About() {
         <div className="flex flex-col gap-10 lg:flex-row">
           <article className="min-w-0 flex-1 space-y-10">
             <header>
-              <h1 className="text-lg font-bold tracking-[0.25em]">about</h1>
+              <h1 className="text-lg font-bold tracking-[0.25em]">docs</h1>
               <p className="pj-dim mt-2 max-w-2xl text-xs leading-relaxed">
                 nodei is a collaborative mining field over the pump.fun launch
                 stream. hold the token, claim a sector, earn a share of creator
-                fees every ten minutes. seven short sections, one idea each.
+                fees every ten minutes. eight short sections, one idea each.
               </p>
             </header>
 

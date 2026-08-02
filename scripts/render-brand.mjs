@@ -26,16 +26,23 @@ const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, 
 
 function pfp() {
   const SIZE = 400
-  // 25 columns now, so the type drops to keep the art inside the frame.
-  const FONT = 21
-  const LINE = 26
+  const FONT = 22
+  const LINE = 25
+
+  // The art is ragged, so it must be laid out LEFT-aligned from one shared x.
+  // Centring each line independently would shear the drawing apart.
+  const cols = Math.max(...CAT.map((l) => l.length))
+  const charWidth = FONT * 0.6 // monospace advance
+  const blockWidth = cols * charWidth
   const blockHeight = CAT.length * LINE
+
+  const left = (SIZE - blockWidth) / 2
   const top = (SIZE - blockHeight) / 2 + FONT * 0.8
 
   const lines = CAT.map(
     (l, i) =>
-      `<text x="${SIZE / 2}" y="${top + i * LINE}" font-family="${MONO}" font-size="${FONT}" ` +
-      `fill="${GREEN}" text-anchor="middle" xml:space="preserve">${esc(l)}</text>`,
+      `<text x="${left.toFixed(1)}" y="${(top + i * LINE).toFixed(1)}" font-family="${MONO}" ` +
+      `font-size="${FONT}" fill="${GREEN}" text-anchor="start" xml:space="preserve">${esc(l)}</text>`,
   ).join('\n  ')
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">

@@ -156,12 +156,14 @@ export function SpotPanel({
         </div>
 
         <div className="border border-pj-amber/40 p-3">
-          <div className="pj-label pj-vein mb-1 text-[11px]">payouts are manual</div>
+          <div className="pj-label pj-vein mb-1 text-[11px]">settlement</div>
           <p className="pj-dim text-[10px] leading-relaxed">
-            this ledger records what you are <span className="pj-vein">owed</span>.
-            nothing here is a transfer. settlement is sent by hand from the
-            treasury, and a row only turns <span className="text-pj-green">paid</span>{' '}
-            once a real signature is attached to it.
+            this ledger records what you have earned. a row moves from{' '}
+            <span className="pj-vein">owed</span> to{' '}
+            <span className="text-pj-green">paid</span> once the treasury sends it
+            and its transaction signature is attached, so every settlement can be
+            followed on chain. amounts already earned stay here whether or not you
+            keep your spot.
           </p>
         </div>
       </div>

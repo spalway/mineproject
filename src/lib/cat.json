@@ -1,15 +1,16 @@
 {
-  "note": "Single source for the mascot. Consumed by MinerCat.tsx and scripts/render-brand.mjs so the site and the brand assets can never drift. Every row is exactly 25 columns.",
-  "width": 25,
+  "note": "Single source for the mascot. Consumed by MinerCat.tsx and scripts/render-brand.mjs so the site and the brand assets can never drift. Lines are ragged by design, so render LEFT-ALIGNED and centre the block, never centre each line.",
   "art": [
-    "   /\\    _______    /\\   ",
-    "  /  \\  /  (o)  \\  /  \\  ",
-    " /    \\/_________\\/    \\ ",
-    "|                       |",
-    "|     ▪           ▪     |",
-    "|                       |",
-    "|        >  w  <        |",
-    "|                       |",
-    " \\_____________________/ "
+    "   _______",
+    "  /  (o)  \\",
+    " /_________\\",
+    "  /\\ ___ /\\",
+    " (  o   o  )",
+    "  \\  >#<  /",
+    "  /       \\",
+    " / ||   || \\    ^",
+    "|   \\   /   |   //",
+    " \\_  ___  _/  //",
+    "  ///  ///  =="
   ]
 }
