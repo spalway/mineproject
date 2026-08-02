@@ -3,22 +3,22 @@
  * language as the rest of the site. Inherits colour via currentColor.
  */
 const PATTERN = [
-  '..............##', // beak
-  '............####',
-  '..........#####.',
-  '.........#####..',
-  '.#.......#####..', // tail feathers break out to the left
-  '.###....######..',
-  '.#####.#######..',
+  '.........###....',
+  '........#####...',
+  '.......######...',
+  '.......######.##', // beak juts right off the head
+  '.#.....#########',
+  '.###...#########',
+  '.#####.########.', // tail feathers break out to the left
   '.##############.',
   '.#############..',
+  '..############..',
   '..###########...',
-  '..##########....',
-  '...########.....',
-  '...#######......', // belly sweeps left rather than tapering to a point
-  '....#####.......',
-  '....###.........',
-  '.....#..........',
+  '...#########....',
+  '...########.....', // belly sweeps left rather than tapering to a point
+  '....######......',
+  '....####........',
+  '.....##.........',
 ]
 
 export function PixelBird({ size = 14 }: { size?: number }) {

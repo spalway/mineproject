@@ -1,8 +1,9 @@
 {
   "note": "Single source for the mascot. Consumed by MinerCat.tsx and scripts/render-brand.mjs so the site and the brand assets can never drift. Lines are ragged by design, so render LEFT-ALIGNED and centre the block, never centre each line.",
   "art": [
-    "  /  (o)  \\",
-    " /__Nodei__\\",
+    "  __-(0)-__",
+    " /  nodei  \\",
+    "/___________\\",
     " (  o   o  )",
     "  \\  >#<  /",
     "  /       \\",
