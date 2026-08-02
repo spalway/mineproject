@@ -29,10 +29,10 @@ export function RiftMap({
     <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
       <div className="border border-pj-faint">
         <div className="pj-dim grid grid-cols-[4rem_1fr_5rem_6rem] gap-2 border-b border-pj-faint px-3 py-1 text-[11px]">
-          <span>SIZE</span>
-          <span>SECTORS</span>
-          <span>WALLETS</span>
-          <span className="text-right">STAKED</span>
+          <span>size</span>
+          <span>sectors</span>
+          <span>wallets</span>
+          <span className="text-right">staked</span>
         </div>
 
         {ranked.length === 0 && (
@@ -47,17 +47,17 @@ export function RiftMap({
             className="grid grid-cols-[4rem_1fr_5rem_6rem] items-center gap-2 border-b border-pj-faint/40 px-3 py-1.5 text-xs"
           >
             <span className={r.sectors.length > 1 ? 'text-pj-green' : 'pj-dim'}>
-              {r.sectors.length > 1 ? `${r.sectors.length} ═╗` : '1'}
+              {r.sectors.length}
             </span>
             <span className="truncate">{r.sectors.map((s) => pad(s)).join(' ')}</span>
             <span className="pj-dim tabular-nums">{r.wallets}</span>
-            <span className="text-right tabular-nums">{sol(r.staked)} SOL</span>
+            <span className="text-right tabular-nums">{sol(r.staked)} sol</span>
           </div>
         ))}
       </div>
 
       <div className="border border-pj-faint p-3 text-xs">
-        <div className="pj-dim mb-2 text-[11px]">FRACTURE STATE</div>
+        <div className="pj-dim mb-2 text-[11px]">fracture state</div>
         <div className="space-y-1">
           <Row label="components" value={String(ranked.length)} />
           <Row label="fractured" value={String(fractures.length)} />
@@ -69,10 +69,10 @@ export function RiftMap({
         </div>
 
         <p className="pj-dim mt-3 text-[10px] leading-relaxed">
-          A rift is a connected run of occupied sectors, counted across every
-          wallet — you benefit from strangers deploying beside you. When a sector
-          strikes, occupied sectors within two hops claim 15% of the pot.
-          Isolated cells claim nothing. The {gridSize}×{gridSize} field does not
+          a rift is a connected run of occupied sectors, counted across every
+          wallet, so you benefit from strangers deploying beside you. when a
+          sector strikes, occupied sectors within two hops claim 15% of the pot.
+          isolated cells claim nothing. the {gridSize}x{gridSize} field does not
           wrap at the edges.
         </p>
       </div>

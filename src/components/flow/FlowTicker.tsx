@@ -14,10 +14,10 @@ export function FlowTicker({ mints, grades }: { mints: MintRow[]; grades: number
     <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
       <div className="border border-pj-faint">
         <div className="pj-dim flex gap-4 border-b border-pj-faint px-3 py-1 text-[11px]">
-          <span className="w-14">SECTOR</span>
-          <span className="w-24">SYMBOL</span>
-          <span className="flex-1">MINT</span>
-          <span className="w-12 text-right">LINK</span>
+          <span className="w-14">sector</span>
+          <span className="w-24">symbol</span>
+          <span className="flex-1">mint</span>
+          <span className="w-20 shrink-0 text-right">link</span>
         </div>
 
         <div className="max-h-[22rem] overflow-y-auto">
@@ -39,7 +39,7 @@ export function FlowTicker({ mints, grades }: { mints: MintRow[]; grades: number
                 href={pumpUrl(m.mint)}
                 target="_blank"
                 rel="noreferrer"
-                className="pj-dim w-12 text-right hover:text-pj-green"
+                className="pj-dim w-20 shrink-0 text-right hover:text-pj-green"
               >
                 [pump]
               </a>
@@ -49,7 +49,7 @@ export function FlowTicker({ mints, grades }: { mints: MintRow[]; grades: number
       </div>
 
       <div className="border border-pj-faint p-3">
-        <div className="pj-dim mb-2 text-[11px]">GRADE THIS EPOCH</div>
+        <div className="pj-dim mb-2 text-[11px]">grade this epoch</div>
         {hot.length === 0 ? (
           <div className="pj-dim text-xs">no grade yet</div>
         ) : (
@@ -64,7 +64,7 @@ export function FlowTicker({ mints, grades }: { mints: MintRow[]; grades: number
           </div>
         )}
         <p className="pj-dim mt-3 text-[10px] leading-relaxed">
-          Highest grade strikes. Ties go to whichever sector reached the count first.
+          highest grade strikes. ties go to whichever sector reached the count first.
         </p>
       </div>
     </div>

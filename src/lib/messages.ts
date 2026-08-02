@@ -5,13 +5,13 @@
 
 export const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'
 
-export const MEMO_TAG = 'PJ1'
+export const MEMO_TAG = 'ND1'
 
-/** Memo payload written into a deploy transaction: `PJ1:<sector>`. */
+/** Memo payload written into a deploy transaction: `ND1:<sector>`. */
 export function memoText(sector: number): string {
   return `${MEMO_TAG}:${sector}`
 }
 
 export function withdrawMessage(rigId: number, nonce: string): string {
-  return `PUMPJACK withdraw\nrig: ${rigId}\nnonce: ${nonce}`
+  return `nodei withdraw\nrig: ${rigId}\nnonce: ${nonce}`
 }

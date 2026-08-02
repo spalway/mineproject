@@ -36,17 +36,17 @@ export function ConnectButton() {
         disabled={connecting}
         className="border border-pj-green px-2 py-0.5 text-pj-green hover:bg-pj-green hover:text-pj-bg transition-colors disabled:opacity-50"
       >
-        {connecting ? 'LINKING..' : 'CONNECT'}
+        {connecting ? 'linking' : 'connect'}
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="border border-pj-dim bg-pj-bg text-pj-green sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="tracking-widest">SELECT WALLET</DialogTitle>
+            <DialogTitle className="tracking-widest">select wallet</DialogTitle>
             <DialogDescription className="pj-dim">
               {listed.length === 0
-                ? 'No Solana wallet detected in this browser.'
-                : 'Devnet. Nothing here touches mainnet funds.'}
+                ? 'no solana wallet detected in this browser.'
+                : 'devnet. nothing here touches mainnet funds.'}
             </DialogDescription>
           </DialogHeader>
 

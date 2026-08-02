@@ -6,25 +6,27 @@ import { parseMemo, verifySignedMessage, memoInstruction } from '@/lib/chain'
 
 describe('parseMemo', () => {
   it('parses a valid tag', () => {
-    expect(parseMemo('PJ1:37')).toBe(37)
+    expect(parseMemo('ND1:37')).toBe(37)
   })
   it('accepts sector 0', () => {
-    expect(parseMemo('PJ1:0')).toBe(0)
+    expect(parseMemo('ND1:0')).toBe(0)
   })
   it('tolerates surrounding whitespace', () => {
-    expect(parseMemo('  PJ1:12  ')).toBe(12)
+    expect(parseMemo('  ND1:12  ')).toBe(12)
   })
   it('rejects a sector out of range', () => {
-    expect(parseMemo('PJ1:64')).toBe(null)
-    expect(parseMemo('PJ1:999')).toBe(null)
+    expect(parseMemo('ND1:64')).toBe(null)
+    expect(parseMemo('ND1:999')).toBe(null)
   })
   it('rejects a wrong tag', () => {
     expect(parseMemo('XX:3')).toBe(null)
+    // The old tag must stop working, or a stale client could still deploy.
+    expect(parseMemo('PJ1:3')).toBe(null)
   })
   it('rejects garbage', () => {
-    expect(parseMemo('PJ1:abc')).toBe(null)
+    expect(parseMemo('ND1:abc')).toBe(null)
     expect(parseMemo('')).toBe(null)
-    expect(parseMemo('PJ1:-1')).toBe(null)
+    expect(parseMemo('ND1:-1')).toBe(null)
   })
 })
 

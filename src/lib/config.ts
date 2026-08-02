@@ -45,8 +45,8 @@ export const CONFIG = {
 
   MIN_DEPLOY_LAMPORTS: 10_000_000,
 
-  /** Memo prefix. Full form is `PJ1:<sector>`. */
-  MEMO_TAG: 'PJ1',
+  /** Memo prefix. Full form is `ND1:<sector>`. */
+  MEMO_TAG: 'ND1',
 } as const
 
 export const LAMPORTS_PER_SOL = 1_000_000_000

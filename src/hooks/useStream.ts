@@ -43,7 +43,20 @@ export type EpochRow = {
   uptime_ratio: number
 }
 
+export type SectorStat = {
+  sector: number
+  grade: number
+  /** lamports staked in this sector */
+  staked: number
+  rigs: number
+  /** SOL back per SOL staked if this sector strikes; null when empty */
+  yieldX: number | null
+}
+
 export type State = {
+  sectors: SectorStat[]
+  /** lamports the pot would hold if the epoch resolved right now */
+  pot: number
   epoch: { id: number; startedAt: number; endsAt: number } | null
   grades: number[]
   occupied: number[]

@@ -15,15 +15,16 @@ export function EpochClock({ endsAt, epochMs }: { endsAt: number; epochMs: numbe
     return () => clearInterval(t)
   }, [])
 
+  const BARS = 14
   const remaining = Math.max(0, endsAt - now)
-  const filled = Math.round(((epochMs - remaining) / epochMs) * 24)
+  const filled = Math.round(((epochMs - remaining) / epochMs) * BARS)
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className="text-3xl leading-none tabular-nums">{clock(remaining)}</div>
-      <div className="pj-dim text-xs">
-        [{'█'.repeat(filled)}
-        {'░'.repeat(Math.max(0, 24 - filled))}]
+      <div className="text-[34px] leading-none tabular-nums">{clock(remaining)}</div>
+      <div className="pj-dim text-[13px]">
+        [{'#'.repeat(filled)}
+        {'-'.repeat(Math.max(0, BARS - filled))}]
       </div>
     </div>
   )

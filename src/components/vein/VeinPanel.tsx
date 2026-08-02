@@ -16,13 +16,13 @@ export function VeinPanel({
     <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
       <div className="flex flex-col gap-4">
         <div className="border border-pj-amber/40 p-4 text-center">
-          <div className="pj-dim text-[11px]">VEIN BALANCE</div>
+          <div className="pj-dim text-[11px]">vein balance</div>
           <div className="pj-vein mt-1 text-3xl tabular-nums">{sol(vein)}</div>
-          <div className="pj-dim text-[11px]">SOL</div>
+          <div className="pj-dim text-[11px]">sol</div>
         </div>
 
         <div className="border border-pj-faint p-3">
-          <div className="pj-dim mb-2 text-[11px]">RECENT GRADUATIONS</div>
+          <div className="pj-dim mb-2 text-[11px]">recent graduations</div>
           {migrations.length === 0 ? (
             <div className="pj-dim text-xs">none observed yet</div>
           ) : (
@@ -44,19 +44,19 @@ export function VeinPanel({
         </div>
 
         <p className="pj-dim text-[10px] leading-relaxed">
-          The vein takes 6% of every pot, plus the whole distributable pot
-          whenever the striking sector holds no rigs. It only pays out when a
+          the vein takes 6% of every pot, plus the whole distributable pot
+          whenever the striking sector holds no rigs. it only pays out when a
           real bonding-curve graduation lands inside the striking sector.
         </p>
       </div>
 
       <div className="border border-pj-faint">
         <div className="pj-dim grid grid-cols-[4rem_4rem_1fr_5rem_5rem] gap-2 border-b border-pj-faint px-3 py-1 text-[11px]">
-          <span>EPOCH</span>
-          <span>STRIKE</span>
-          <span>MINTS</span>
-          <span className="text-right">POT</span>
-          <span className="text-right">VEIN</span>
+          <span>epoch</span>
+          <span>strike</span>
+          <span>mints</span>
+          <span className="text-right">pot</span>
+          <span className="text-right">vein</span>
         </div>
 
         <div className="max-h-[26rem] overflow-y-auto">
@@ -73,7 +73,7 @@ export function VeinPanel({
             >
               <span className="pj-dim">e{e.id}</span>
               <span className={e.status === 'void' ? 'text-pj-amber' : 'text-pj-green'}>
-                {e.status === 'void' ? 'DARK' : e.strike_sector === null ? '—' : pad(e.strike_sector)}
+                {e.status === 'void' ? 'dark' : e.strike_sector === null ? '-' : pad(e.strike_sector)}
               </span>
               <span className="pj-dim tabular-nums">{e.mint_count}</span>
               <span className="text-right tabular-nums">{sol(e.pot_lamports, 4)}</span>

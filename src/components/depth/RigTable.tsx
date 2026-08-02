@@ -65,11 +65,11 @@ export function RigTable({
     <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
       <div className="border border-pj-faint">
         <div className="pj-dim grid grid-cols-[3rem_4rem_1fr_4rem_5rem_4rem] gap-2 border-b border-pj-faint px-3 py-1 text-[11px]">
-          <span>RIG</span>
-          <span>SECTOR</span>
-          <span>BALANCE</span>
-          <span>DEPTH</span>
-          <span>WEIGHT</span>
+          <span>rig</span>
+          <span>sector</span>
+          <span>balance</span>
+          <span>depth</span>
+          <span>weight</span>
           <span />
         </div>
 
@@ -92,7 +92,7 @@ export function RigTable({
           >
             <span className="pj-dim">#{r.id}</span>
             <span className="text-pj-green">{pad(r.sector)}</span>
-            <span className="tabular-nums">{sol(r.balance)} SOL</span>
+            <span className="tabular-nums">{sol(r.balance)} sol</span>
             <span className="tabular-nums">{r.depth}</span>
             <span className="tabular-nums text-pj-green">
               {multiplier(r.depth, depthCap, depthK).toFixed(2)}×
@@ -102,14 +102,14 @@ export function RigTable({
               disabled={busy}
               className="border border-pj-faint py-0.5 text-[10px] hover:border-pj-amber hover:text-pj-amber disabled:opacity-40"
             >
-              PULL
+              pull
             </button>
           </div>
         ))}
 
         {payouts.length > 0 && (
           <div className="border-t border-pj-faint">
-            <div className="pj-dim px-3 py-1 text-[11px]">PAYOUT LEDGER</div>
+            <div className="pj-dim px-3 py-1 text-[11px]">payout ledger</div>
             <div className="max-h-40 overflow-y-auto">
               {payouts.map((p) => (
                 <div
@@ -130,7 +130,7 @@ export function RigTable({
       </div>
 
       <div className="border border-pj-faint p-3 text-xs">
-        <div className="pj-dim mb-2 text-[11px]">DEPTH CURVE</div>
+        <div className="pj-dim mb-2 text-[11px]">depth curve</div>
         <div className="space-y-0.5">
           {[0, 15, 30, 45, 60].map((d) => (
             <div key={d} className="flex items-center gap-2">
@@ -143,9 +143,9 @@ export function RigTable({
           ))}
         </div>
         <p className="pj-dim mt-3 text-[10px] leading-relaxed">
-          Depth is consecutive epochs survived. It caps at {depthCap} epochs
-          (~{capMinutes} minutes) for a 3× weight multiplier. A strike does not
-          reset it. Pulling a rig does — depth returns to zero.
+          depth is consecutive epochs survived. it caps at {depthCap} epochs
+          (~{capMinutes} minutes) for a 3x weight multiplier. a strike does not
+          reset it. pulling a rig does, and depth returns to zero.
         </p>
       </div>
     </div>

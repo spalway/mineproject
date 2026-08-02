@@ -129,9 +129,10 @@
   }
 }
 /* ==================================================================
-   PUMPJACK — green phosphor terminal
-   Black, monospace, ASCII. Amber is reserved EXCLUSIVELY for the vein
-   so a jackpot reads instantly and nothing competes for that signal.
+   nodei — flat backrooms terminal
+   Flat dark grey, green text, Pixelta throughout. Amber is reserved
+   EXCLUSIVELY for the vein so a jackpot reads instantly and nothing
+   competes for that signal.
    ================================================================== */
 
 :root,
@@ -184,14 +185,23 @@
 html {
   color-scheme: dark;
   background: var(--pj-bg);
+  /* Pixelta's glyphs sit small in the em box, so everything rem-based needs a
+     larger root to stay legible. */
+  font-size: 18px;
 }
 
 body {
   background: var(--pj-bg);
   color: var(--pj-green);
-  font-family: var(--font-geist-mono), ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  font-family: var(--font-pixelta), ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
   font-variant-ligatures: none;
   letter-spacing: 0.02em;
+}
+
+/* Pixelta is a pixel face, so it renders crisper without smoothing. */
+body {
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
 }
 
 /* Every glyph on the site occupies one cell. No proportional type anywhere. */

@@ -21,7 +21,7 @@ type Runtime = {
   payoutTimer: NodeJS.Timeout
 }
 
-const globalRef = globalThis as unknown as { __pumpjackRuntime?: Runtime }
+const globalRef = globalThis as unknown as { __nodeiRuntime?: Runtime }
 
 const toMintEvent = (r: db.MintRow): MintEvent => ({
   mint: r.mint,
@@ -265,7 +265,7 @@ export async function flushPayouts(): Promise<void> {
 // ------------------------------------------------------------------ boot
 
 export function startRuntime(): void {
-  if (globalRef.__pumpjackRuntime) return
+  if (globalRef.__nodeiRuntime) return
 
   db.getDb()
 
@@ -287,8 +287,8 @@ export function startRuntime(): void {
     void flushPayouts()
   }, PAYOUT_INTERVAL_MS)
 
-  globalRef.__pumpjackRuntime = { ingest, tickTimer, payoutTimer }
-  console.log('[runtime] PUMPJACK online')
+  globalRef.__nodeiRuntime = { ingest, tickTimer, payoutTimer }
+  console.log('[runtime] nodei online')
 }
 
 // ------------------------------------------------------------------ read
@@ -298,8 +298,33 @@ export function getState() {
   const mints = epoch ? db.epochMints(epoch.id) : []
   const { grades } = computeGrades(mints.map(toMintEvent))
   const occupied = db.occupiedSectors()
+  const rigs = db.activeRigs()
+
+  // Pot this epoch if it resolved right now: every active rig's draw.
+  const pot = rigs.reduce((sum, r) => sum + drawOf(r.balance), 0)
+  const strikerPool = Math.floor((pot * CONFIG.STRIKER_BPS) / 10_000)
+
+  /**
+   * Per-sector readout. `staked` is what it costs to be here — crowded sectors
+   * are expensive. `yieldX` is SOL returned per SOL staked if this sector
+   * strikes, so it falls as a sector fills up. Both are derived from live
+   * state; neither is a projection or an estimate dressed up as one.
+   */
+  const sectors = Array.from({ length: CONFIG.SECTOR_COUNT }, (_, sector) => {
+    const here = rigs.filter((r) => r.sector === sector)
+    const staked = here.reduce((sum, r) => sum + r.balance, 0)
+    return {
+      sector,
+      grade: grades[sector] ?? 0,
+      staked,
+      rigs: here.length,
+      yieldX: staked > 0 ? strikerPool / staked : null,
+    }
+  })
 
   return {
+    sectors,
+    pot,
     epoch: epoch
       ? {
           id: epoch.id,
@@ -310,7 +335,7 @@ export function getState() {
     grades,
     occupied: [...occupied],
     rifts: riftComponents(occupied),
-    rigs: db.activeRigs(),
+    rigs,
     vein: db.veinBalance(),
     recentMints: db.recentMints(40),
     recentMigrations: db.recentMigrations(10),
@@ -324,8 +349,8 @@ export function getState() {
       depthCap: CONFIG.DEPTH_CAP,
       depthK: CONFIG.DEPTH_K,
     },
-    connected: globalRef.__pumpjackRuntime?.ingest.connected ?? false,
+    connected: globalRef.__nodeiRuntime?.ingest.connected ?? false,
   }
 }
 
-export type PumpjackState = ReturnType<typeof getState>
+export type NodeiState = ReturnType<typeof getState>

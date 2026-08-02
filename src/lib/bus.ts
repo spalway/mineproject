@@ -34,7 +34,7 @@ class Bus extends EventEmitter {
 }
 
 // Survives HMR in dev, where module state would otherwise be recreated.
-const globalRef = globalThis as unknown as { __pumpjackBus?: Bus }
-export const bus: Bus = globalRef.__pumpjackBus ?? new Bus()
+const globalRef = globalThis as unknown as { __nodeiBus?: Bus }
+export const bus: Bus = globalRef.__nodeiBus ?? new Bus()
 bus.setMaxListeners(0)
-globalRef.__pumpjackBus = bus
+globalRef.__nodeiBus = bus

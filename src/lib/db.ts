@@ -113,7 +113,7 @@ export function getDb(path?: string, opts?: { reset?: boolean }): DatabaseSync {
     handle = null
   }
 
-  const target = path ?? process.env.PUMPJACK_DB ?? '.data/pumpjack.db'
+  const target = path ?? process.env.NODEI_DB ?? '.data/nodei.db'
   if (target !== ':memory:') mkdirSync(dirname(target), { recursive: true })
 
   handle = new DatabaseSync(target)

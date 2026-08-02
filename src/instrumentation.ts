@@ -1,5 +1,5 @@
 /**
- * Boots the PUMPJACK runtime once per server process: the PumpPortal
+ * Boots the nodei runtime once per server process: the PumpPortal
  * websocket, the epoch clock, and the payout loop.
  *
  * This is why the app needs a long-lived node server and cannot run on
