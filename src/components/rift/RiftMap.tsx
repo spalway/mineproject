@@ -8,11 +8,13 @@ export function RiftMap({
   spots,
   gridSize,
   riftBps,
+  loaded = true,
 }: {
   rifts: number[][]
   spots: Spot[]
   gridSize: number
   riftBps: number
+  loaded?: boolean
 }) {
   const ranked = rifts
     .map((sectors) => {
@@ -38,7 +40,7 @@ export function RiftMap({
           <span className="text-right">depth</span>
         </div>
 
-        {ranked.length === 0 && (
+        {loaded && ranked.length === 0 && (
           <div className="pj-dim px-3 py-6 text-center text-xs">
             field is empty, so there are no fractures
           </div>

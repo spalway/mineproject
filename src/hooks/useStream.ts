@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { CONFIG } from '@/lib/config'
 
 export type StreamEvent =
   | {
@@ -99,11 +100,63 @@ export type State = {
 }
 
 /**
+ * The page shape before any data has arrived: an empty board and no round.
+ *
+ * Built from CONFIG, which is a pure module with no server dependencies, so
+ * the skeleton can never disagree with the real thing. Money figures are not
+ * rendered until `loaded` — a zero here would be a number we have not read.
+ */
+function skeleton(): State {
+  return {
+    sectors: Array.from({ length: CONFIG.SECTOR_COUNT }, (_, sector) => ({
+      sector,
+      grade: 0,
+      claimed: false,
+      wallet: null,
+      depth: 0,
+      weight: 0,
+      poolShare: 0,
+    })),
+    round: null,
+    grades: new Array(CONFIG.SECTOR_COUNT).fill(0),
+    occupied: [],
+    rifts: [],
+    spots: [],
+    carried: 0,
+    owed: 0,
+    paid: 0,
+    leaderboard: [],
+    recentMints: [],
+    recentMigrations: [],
+    rounds: [],
+    treasury: { address: '', lastSeen: null },
+    config: {
+      gridSize: CONFIG.GRID_SIZE,
+      sectorCount: CONFIG.SECTOR_COUNT,
+      roundMs: CONFIG.ROUND_MS,
+      minTokens: CONFIG.MIN_TOKEN_BALANCE,
+      feeShareBps: CONFIG.FEE_SHARE_BPS,
+      strikeBps: CONFIG.STRIKE_BPS,
+      riftBps: CONFIG.RIFT_BPS,
+      poolBps: CONFIG.POOL_BPS,
+      depthCap: CONFIG.DEPTH_CAP,
+      depthK: CONFIG.DEPTH_K,
+      tokenMint: '',
+    },
+    connected: true,
+  }
+}
+
+/**
  * Live field state. Applies stream events immediately for responsiveness, and
  * resyncs from /api/state on every round boundary so nothing can drift.
+ *
+ * Starts from a skeleton rather than null so the page renders its real layout
+ * straight away and fills in, instead of showing a loading screen.
  */
 export function useStream() {
-  const [state, setState] = useState<State | null>(null)
+  const [state, setState] = useState<State>(skeleton)
+  const [loaded, setLoaded] = useState(false)
   const [lastStrike, setLastStrike] = useState<number | null>(null)
   const [landed, setLanded] = useState<Record<number, number>>({})
   const [live, setLive] = useState(false)
@@ -112,7 +165,10 @@ export function useStream() {
   const resync = useCallback(async () => {
     try {
       const res = await fetch('/api/state', { cache: 'no-store' })
-      if (res.ok) setState(await res.json())
+      if (res.ok) {
+        setState(await res.json())
+        setLoaded(true)
+      }
     } catch {
       // transient; the stream will trigger another resync shortly
     }
@@ -187,5 +243,5 @@ export function useStream() {
     }
   }, [resync])
 
-  return { state, lastStrike, landed, live, resync }
+  return { state, loaded, lastStrike, landed, live, resync }
 }

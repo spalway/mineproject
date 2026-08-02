@@ -10,11 +10,13 @@ export function RoundLog({
   carried,
   owed,
   paid,
+  loaded,
 }: {
   rounds: RoundRow[]
   carried: number
   owed: number
   paid: number
+  loaded: boolean
 }) {
   const [open, setOpen] = useState<number | null>(null)
 
@@ -28,10 +30,10 @@ export function RoundLog({
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-4">
-        <Box label="rounds run" value={String(rounds.length)} />
-        <Box label="distributed" value={sol(distributed, 4)} />
-        <Box label="in the pot" value={sol(carried, 4)} />
-        <Box label="owed" value={sol(owed, 4)} vein />
+        <Box label="rounds run" value={loaded ? String(rounds.length) : '--'} />
+        <Box label="distributed" value={loaded ? sol(distributed, 4) : '--'} />
+        <Box label="in the pot" value={loaded ? sol(carried, 4) : '--'} />
+        <Box label="owed" value={loaded ? sol(owed, 4) : '--'} vein />
       </div>
 
       <div className="border border-pj-faint">
@@ -43,7 +45,8 @@ export function RoundLog({
           <span className="text-right">carried</span>
         </div>
 
-        {rounds.length === 0 && (
+        {/* Only claim there are none once we have actually looked. */}
+        {loaded && rounds.length === 0 && (
           <div className="pj-dim px-3 py-8 text-center text-xs">
             no rounds have closed yet
           </div>
@@ -85,9 +88,9 @@ export function RoundLog({
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="border border-pj-faint p-3 text-xs">
           <div className="pj-label pj-dim mb-2 text-[11px]">record</div>
-          <Row label="rounds settled" value={String(resolved.length)} />
-          <Row label="rounds dark" value={String(dark.length)} />
-          <Row label="paid out" value={`${sol(paid, 4)} sol`} />
+          <Row label="rounds settled" value={loaded ? String(resolved.length) : '--'} />
+          <Row label="rounds dark" value={loaded ? String(dark.length) : '--'} />
+          <Row label="paid out" value={loaded ? `${sol(paid, 4)} sol` : '--'} />
           <p className="pj-dim mt-3 text-[10px] leading-relaxed">
             click any round to open its log: the board as it stood, which sector
             came out on top, and exactly what each wallet received.

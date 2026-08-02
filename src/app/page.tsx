@@ -19,33 +19,28 @@ export default function PoolPage() {
 
   return (
     <Screen>
-      {(state, { resync, lastStrike, landed }) => {
-        const dark = !state.connected
-        const claimedCount = state.spots.length
-
-        return (
-          <PoolBody
-            state={state}
-            dark={dark}
-            claimedCount={claimedCount}
-            selected={selected}
-            setSelected={setSelected}
-            info={info}
-            reload={reload}
-            resync={resync}
-            lastStrike={lastStrike}
-            landed={landed}
-          />
-        )
-      }}
+      {(state, { resync, loaded, lastStrike, landed }) => (
+        <PoolBody
+          state={state}
+          loaded={loaded}
+          dark={loaded && !state.connected}
+          selected={selected}
+          setSelected={setSelected}
+          info={info}
+          reload={reload}
+          resync={resync}
+          lastStrike={lastStrike}
+          landed={landed}
+        />
+      )}
     </Screen>
   )
 }
 
 type BodyProps = {
   state: import('@/hooks/useStream').State
+  loaded: boolean
   dark: boolean
-  claimedCount: number
   selected: number | null
   setSelected: (n: number | null) => void
   info: ReturnType<typeof useWalletInfo>['info']
@@ -57,8 +52,8 @@ type BodyProps = {
 
 function PoolBody({
   state,
+  loaded,
   dark,
-  claimedCount,
   selected,
   setSelected,
   info,
@@ -126,12 +121,22 @@ function PoolBody({
       <ContractBar />
 
       <div className="flex flex-wrap items-end justify-center gap-x-10 gap-y-4">
-        <Stat label="claimed" value={`${claimedCount}/64`} />
-        <Stat label="pot" value={sol(state.carried, 4)} />
-        <Stat label="owed" value={sol(state.owed, 4)} vein />
-        <Stat label="paid" value={sol(state.paid, 4)} />
-        {state.round && (
+        {/* Dashes rather than zeros until the read lands: a figure we have not
+            fetched is unknown, not nought. */}
+        <Stat
+          label="claimed"
+          value={loaded ? `${state.spots.length}/${state.config.sectorCount}` : '--'}
+        />
+        <Stat label="pot" value={loaded ? sol(state.carried, 4) : '--'} />
+        <Stat label="owed" value={loaded ? sol(state.owed, 4) : '--'} vein />
+        <Stat label="paid" value={loaded ? sol(state.paid, 4) : '--'} />
+        {state.round ? (
           <RoundClock endsAt={state.round.endsAt} roundMs={state.config.roundMs} />
+        ) : (
+          <div className="flex flex-col items-center">
+            <span className="text-[26px] text-pj-grid">--:--</span>
+            <span className="pj-label pj-dim text-[13px] tracking-widest">next round</span>
+          </div>
         )}
       </div>
 

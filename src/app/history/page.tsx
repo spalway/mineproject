@@ -9,12 +9,13 @@ export default function HistoryPage() {
       title="history"
       blurb="every round the pool has run. each one closes, ranks the board, and records exactly what each wallet received. open a round to see the board as it stood and the full distribution."
     >
-      {(state) => (
+      {(state, { loaded }) => (
         <RoundLog
           rounds={state.rounds}
           carried={state.carried}
           owed={state.owed}
           paid={state.paid}
+          loaded={loaded}
         />
       )}
     </Screen>
