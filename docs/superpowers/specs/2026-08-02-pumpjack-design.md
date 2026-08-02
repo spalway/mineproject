@@ -162,7 +162,11 @@ pumpportal WS ──> ingest ──> SQLite ──> engine (60s tick)
                             wallet-adapter ──> devnet
 ```
 
-**Stack:** Next.js 15 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · `@solana/wallet-adapter` · `@solana/web3.js` · `better-sqlite3` · `ws`
+**Stack:** Next.js 15 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · `@solana/wallet-adapter` · `@solana/web3.js` · `node:sqlite` · `ws`
+
+Storage uses Node 24's first-party `node:sqlite` (`DatabaseSync`) rather than `better-sqlite3`. Same synchronous API shape, but no native compile step — which matters because npm blocks install scripts by default here and native builds fail on Windows without a toolchain.
+
+Wallet support relies on Wallet Standard auto-registration, so `@solana/wallet-adapter-wallets` is not installed. Phantom, Solflare, and Backpack self-register. The meta-package pulls in `@stellar/stellar-sdk`, whose postinstall requires yarn and breaks the install outright.
 
 ### 4.1 Modules
 
@@ -257,11 +261,44 @@ SSE is chosen over a client websocket: the stream is one-way, it survives proxie
 
 Plus `/about` — an ORE-style docs page. Five short paragraphs, one idea each, no walls of text.
 
-### 7.1 Visual language
+### 7.1 Visual language — green phosphor terminal
 
-Near-black background, monospace type, hairline borders, generous negative space. Pump green as the single accent for grade and strike. Amber reserved **exclusively** for the vein, so a jackpot reads instantly and nothing else competes for that signal. Concrete tokens come from the `crypto-ui-kit` skill at build time.
+The entire site is a CRT terminal. Black background, phosphor green text, monospace everywhere, ASCII and box-drawing characters instead of drawn shapes. Reference point is Truth Terminal — which is also pump-ecosystem canon, so the aesthetic reads as native rather than borrowed.
 
-shadcn components in use: Button, Card, Tabs, Tooltip, Dialog, Sheet, Table, Badge, Progress, Separator, ScrollArea, HoverCard, Sonner.
+**Palette.** Only three colours carry meaning:
+
+| Token | Value | Used for |
+|---|---|---|
+| `--bg` | `#050705` | background |
+| `--green` | `#33ff66` | primary text, grade, strike |
+| `--green-dim` | `#1a7a33` | borders, inactive sectors, chrome |
+| `--amber` | `#ffb000` | **vein only** |
+
+Amber is an authentic amber-CRT phosphor, so reserving it for the vein stays visually coherent while keeping the rule from §7: exactly one signal colour, and it means jackpot. Nothing else may use amber.
+
+**Type.** A single monospace stack, no proportional font anywhere on the site — including headings and body copy. Every glyph occupies one cell.
+
+**The field is real ASCII.** The 8×8 grid is a character matrix drawn with box-drawing glyphs, not a CSS grid of divs styled to look like one. Sector state maps to density:
+
+```
+      00 01 02 03 04 05 06 07
+   ┌────────────────────────────┐
+00 │  ·  ·  ▒  ·  ·  ░  ·  ·    │
+01 │  ·  ░  ·  ·  █══█  ·  ·    │
+02 │  ▒  ·  ·  ·  ║  ·  ·  ·    │
+```
+
+- `·` empty sector, no grade
+- `░ ▒ ▓` ascending grade this epoch
+- `█` occupied by at least one rig
+- `═ ║` rift links between adjacent occupied sectors
+- Striking sector inverts to solid and flashes for one second
+
+Because everything is characters on a fixed grid, rift fractures render as actual connected line-drawing runs — the tunnels are literally drawn in text.
+
+**CRT treatment.** Subtle scanline overlay, faint text-shadow bloom on green, and a short boot sequence on first load that types out a status banner and then hands over to the live field. The boot sequence must never gate or delay the real data — it plays over an already-connected stream.
+
+**shadcn** still supplies Dialog, Tooltip, Table, Tabs, ScrollArea, Sonner and friends for behaviour and accessibility, restyled to the terminal palette. Components provide focus management and keyboard handling; the terminal skin is purely presentational on top.
 
 ---
 
