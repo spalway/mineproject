@@ -1,36 +1,112 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# nodei
 
-## Getting Started
+A collaborative mining pool laid out as a 64 sector field.
 
-First, run the development server:
+Hold the token, claim one sector with a signature, and every ten minutes the
+board is ranked and a share of creator fees is split across it.
+
+---
+
+## How it works
+
+1. **Hold** the minimum token balance. It is re-checked on chain at the start of
+   every round, so a sector only stays yours while you still qualify.
+2. **Claim** one open sector by signing a message. It is a signature, not a
+   transaction — nothing moves, and the user pays no network fee.
+3. **Rounds** close every ten minutes. Each sector is bound to a slice of the
+   Solana token address space (`mintPubkey.toBytes()[0] % 64`), and its activity
+   for the round is the count of new tokens that landed in it, capped at one per
+   creator so a single wallet cannot manufacture a win cheaply. The busiest
+   sector comes out on top; ties go to whichever reached the count first.
+4. **The pot** is 70% of the creator fees that arrived in the treasury since the
+   last close, measured as that wallet's balance change read from chain.
+5. **The split** is 50% to the top sector, 20% across claimed sectors within two
+   steps of it, and 30% across every claimed sector on the board. Any leg with
+   nobody eligible carries into the next round rather than vanishing.
+
+## Design constraints
+
+These are load-bearing, not preferences:
+
+- **The server holds no private key.** Claiming is signature-only and payouts
+  are sent from the treasury separately, so nothing in this process can move
+  funds. The worst a compromise can do is misreport the ledger, which is public.
+- **No fabricated data, ever.** If the activity feed drops for more than 20% of
+  a round, the round closes `dark`: nothing is distributed and the pot rolls
+  forward whole. Missing figures render as `--`, never as `0`.
+- **Money is integer lamports end to end.** Allocation uses largest-remainder so
+  every split sums to the pot exactly. There is a test asserting this over
+  randomised inputs.
+- **The client is never trusted.** Token balances are read from chain
+  server-side; the browser's claim about what a wallet holds is ignored.
+
+## Running it
 
 ```bash
+npm install
+cp .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```bash
+npm test
+npm run build
+npm start
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploying
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app **must run as a single long-lived Node process**. It holds a persistent
+websocket to the activity feed and owns the round clock, neither of which
+survives on serverless. Railway, Fly, Render or a plain VPS all work; Vercel
+does not.
 
-## Learn More
+Two things to get right:
 
-To learn more about Next.js, take a look at the following resources:
+1. **`NODEI_DB` must point at a persistent volume.** Otherwise every redeploy
+   wipes the round history and the owed ledger.
+2. **Use a real RPC endpoint.** Each round close costs one treasury balance read
+   plus one token balance read per claimed sector. The public endpoint will
+   throttle that.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Run exactly one instance. A second process would open a second round clock and
+double-resolve rounds.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Going live checklist
 
-## Deploy on Vercel
+- [ ] `RPC_URL` set to a dedicated endpoint
+- [ ] `NEXT_PUBLIC_TREASURY_ADDRESS` set to the fee-receiving wallet
+- [ ] `NODEI_DB` on a persistent volume
+- [ ] Token deployed, then set `token_mint` in the `config` table — claiming
+      stays closed until it is, and the change applies on the next request with
+      no redeploy
+- [ ] `BIRDEYE_API_KEY` if you want the contract bar to show live figures
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Supabase
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`supabase/schema.sql` is the Postgres mirror of the SQLite schema — idempotent,
+paste into the SQL editor. It provisions the tables, partial unique indexes
+enforcing one live sector per wallet and per sector, RLS (public read on
+everything auditable, service-role for writes), helper views, and a CHECK
+constraint making it impossible to record a payout as `paid` without a
+transaction signature attached.
+
+**The runtime does not read from it yet.** `src/lib/db.ts` is synchronous
+SQLite; pointing it at Postgres means making the data layer async, which ripples
+through the round engine and every route. The schema and env vars are staged for
+that, but the app currently runs on SQLite.
+
+## Layout
+
+```
+src/lib/          sector, rift, payout, engine  — pure, no I/O, unit tested
+                  db, ingest, chain, runtime    — storage, feed, chain, clock
+src/app/          pool, history, position, mechanics, docs + API routes
+supabase/         Postgres schema
+scripts/          brand asset renderer, feed capture, rate analysis
+brand/            generated pfp and banner
+```
+
+The mechanic lives in four pure modules that take a state snapshot and return a
+result. They have no network or database access, which is why the whole payout
+model is testable offline.

@@ -9,6 +9,7 @@ import { RoundClock } from '@/components/field/RoundClock'
 import { ClaimBar, useWalletInfo } from '@/components/field/ClaimBar'
 import { Legend } from '@/components/field/Legend'
 import { MinerCat } from '@/components/shared/MinerCat'
+import { ContractBar } from '@/components/shared/ContractBar'
 import { useClaim } from '@/hooks/useClaim'
 import { sol } from '@/lib/format'
 
@@ -121,6 +122,8 @@ function PoolBody({
       </p>
 
       <MinerCat />
+
+      <ContractBar />
 
       <div className="flex flex-wrap items-end justify-center gap-x-10 gap-y-4">
         <Stat label="claimed" value={`${claimedCount}/64`} />

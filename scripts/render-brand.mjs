@@ -31,12 +31,10 @@ function pfp() {
 
   // The art is ragged, so it must be laid out LEFT-aligned from one shared x.
   // Centring each line independently would shear the drawing apart.
-  const cols = Math.max(...CAT.map((l) => l.length))
-  const charWidth = FONT * 0.6 // monospace advance
-  const blockWidth = cols * charWidth
   const blockHeight = CAT.length * LINE
 
-  const left = (SIZE - blockWidth) / 2
+  // Sits against the left edge of the square rather than centred.
+  const left = 30
   const top = (SIZE - blockHeight) / 2 + FONT * 0.8
 
   const lines = CAT.map(

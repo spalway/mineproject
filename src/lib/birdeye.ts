@@ -40,9 +40,49 @@ async function price(mint: string): Promise<number | null> {
 
 export const solUsd = () => price(SOL_MINT)
 
-export const tokenUsd = () => {
-  const mint = process.env.NEXT_PUBLIC_TOKEN_MINT
-  return mint ? price(mint) : Promise.resolve(null)
-}
+export const tokenUsd = (mint: string) => (mint ? price(mint) : Promise.resolve(null))
 
 export const birdeyeConfigured = () => !!process.env.BIRDEYE_API_KEY
+
+export type TokenStats = {
+  price: number | null
+  mcap: number | null
+  liquidity: number | null
+  volume24h: number | null
+  holders: number | null
+}
+
+const num = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isFinite(v) ? v : null
+
+/**
+ * Headline token figures for display. Every field is independently nullable —
+ * a missing figure renders as a dash rather than a zero, because zero market
+ * cap and unknown market cap are very different claims.
+ */
+export async function tokenOverview(mint: string): Promise<TokenStats | null> {
+  const key = process.env.BIRDEYE_API_KEY
+  if (!key || !mint) return null
+
+  try {
+    const res = await fetch(`${BIRDEYE}/defi/token_overview?address=${mint}`, {
+      headers: { 'X-API-KEY': key, accept: 'application/json', 'x-chain': 'solana' },
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+
+    const body = (await res.json()) as { data?: Record<string, unknown> }
+    const d = body.data
+    if (!d) return null
+
+    return {
+      price: num(d.price),
+      mcap: num(d.marketCap) ?? num(d.mc),
+      liquidity: num(d.liquidity),
+      volume24h: num(d.v24hUSD),
+      holders: num(d.holder),
+    }
+  } catch {
+    return null
+  }
+}
