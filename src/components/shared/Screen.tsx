@@ -29,7 +29,7 @@ export function Screen({
   if (!state) {
     return (
       <>
-        <Nav live={false} />
+        <Nav />
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-16">
           <div className="pj-dim text-sm">
             establishing link<span className="pj-cursor" />
@@ -41,7 +41,7 @@ export function Screen({
 
   return (
     <>
-      <Nav live={live && state.connected} />
+      <Nav />
       <main className="mx-auto w-full max-w-6xl flex-1 space-y-6 px-4 py-8">
         {title && (
           <header className="border-b border-pj-faint pb-3">

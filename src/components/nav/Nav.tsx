@@ -3,6 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ConnectButton } from '@/components/wallet/ConnectButton'
+import { PixelX } from '@/components/shared/PixelX'
+
+const TWITTER_URL = process.env.NEXT_PUBLIC_TWITTER_URL ?? 'https://x.com'
 
 const LINKS = [
   { href: '/', label: 'pool' },
@@ -13,7 +16,7 @@ const LINKS = [
   { href: '/docs', label: 'docs' },
 ]
 
-export function Nav({ live }: { live: boolean }) {
+export function Nav() {
   const pathname = usePathname()
 
   return (
@@ -40,10 +43,16 @@ export function Nav({ live }: { live: boolean }) {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          <span className={live ? 'text-pj-green' : 'text-pj-amber'}>
-            {live ? 'feed live' : 'feed down'}
-          </span>
-          <span className="pj-dim">{process.env.NEXT_PUBLIC_NETWORK ?? 'devnet'}</span>
+          <a
+            href={TWITTER_URL}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="nodei on X"
+            className="flex items-center gap-2 border border-pj-faint px-3 py-1 text-pj-dim transition-colors hover:border-pj-green hover:text-pj-green"
+          >
+            <PixelX />
+            <span className="font-bold">follow</span>
+          </a>
           <ConnectButton />
         </div>
       </div>

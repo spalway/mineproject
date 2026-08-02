@@ -1,14 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
   <rect width="400" height="400" fill="#232323"/>
   <rect x="10.5" y="10.5" width="379" height="379" fill="none" stroke="#3c403d" stroke-width="1"/>
-  <text x="200" y="75.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="26" fill="#4af08a" text-anchor="middle" xml:space="preserve">     _________     </text>
-  <text x="200" y="104.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="26" fill="#4af08a" text-anchor="middle" xml:space="preserve">    /   (o)   \    </text>
-  <text x="200" y="133.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="26" fill="#4af08a" text-anchor="middle" xml:space="preserve">   /___________\   </text>
-  <text x="200" y="162.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="26" fill="#4af08a" text-anchor="middle" xml:space="preserve"> /\             /\ </text>
-  <text x="200" y="191.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="26" fill="#4af08a" text-anchor="middle" xml:space="preserve">/  \___________/  \</text>
-  <text x="200" y="220.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="26" fill="#4af08a" text-anchor="middle" xml:space="preserve">|  ( )       ( )  |</text>
-  <text x="200" y="249.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="26" fill="#4af08a" text-anchor="middle" xml:space="preserve">|                 |</text>
-  <text x="200" y="278.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="26" fill="#4af08a" text-anchor="middle" xml:space="preserve">|      \_Y_/      |</text>
-  <text x="200" y="307.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="26" fill="#4af08a" text-anchor="middle" xml:space="preserve"> \  \__/   \__/  / </text>
-  <text x="200" y="336.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="26" fill="#4af08a" text-anchor="middle" xml:space="preserve">  \_____________/  </text>
+  <text x="200" y="99.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="21" fill="#4af08a" text-anchor="middle" xml:space="preserve">   /\    _______    /\   </text>
+  <text x="200" y="125.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="21" fill="#4af08a" text-anchor="middle" xml:space="preserve">  /  \  /  (o)  \  /  \  </text>
+  <text x="200" y="151.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="21" fill="#4af08a" text-anchor="middle" xml:space="preserve"> /    \/_________\/    \ </text>
+  <text x="200" y="177.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="21" fill="#4af08a" text-anchor="middle" xml:space="preserve">|                       |</text>
+  <text x="200" y="203.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="21" fill="#4af08a" text-anchor="middle" xml:space="preserve">|     ▪           ▪     |</text>
+  <text x="200" y="229.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="21" fill="#4af08a" text-anchor="middle" xml:space="preserve">|                       |</text>
+  <text x="200" y="255.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="21" fill="#4af08a" text-anchor="middle" xml:space="preserve">|        &gt;  w  &lt;        |</text>
+  <text x="200" y="281.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="21" fill="#4af08a" text-anchor="middle" xml:space="preserve">|                       |</text>
+  <text x="200" y="307.8" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace" font-size="21" fill="#4af08a" text-anchor="middle" xml:space="preserve"> \_____________________/ </text>
 </svg>

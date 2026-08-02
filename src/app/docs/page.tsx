@@ -87,8 +87,8 @@ const SECTIONS = [
         <p className="mt-3">
           accrual is measured as the treasury&apos;s balance change across the
           round, read from chain at each close. a withdrawal counts as zero
-          rather than as a negative pot. the treasury address is published on the
-          vein page so the flows can be checked independently.
+          rather than as a negative pot. the treasury address is published on
+          the treasury page so the flows can be checked independently.
         </p>
       </>
     ),
@@ -153,7 +153,7 @@ const SECTIONS = [
         <li>
           grade is contestable. anyone can push a sector by paying to launch
           tokens into it. that is a feature, it costs real sol, and you can watch
-          it happen live in flow.
+          it happen live on the launches page.
         </li>
         <li>
           arrival order uses our ingest receipt time, not chain time. tie breaks
@@ -172,7 +172,7 @@ const SECTIONS = [
 export default function About() {
   return (
     <>
-      <Nav live />
+      <Nav />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
         <div className="flex flex-col gap-10 lg:flex-row">

@@ -6,7 +6,7 @@
  *
  * Outputs SVG (source of truth) and PNG (what Twitter wants) into brand/.
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import sharp from 'sharp'
 
 const BG = '#232323'
@@ -17,18 +17,8 @@ const RED = '#ff4d4d'
 
 const MONO = "ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace"
 
-const CAT = [
-  '     _________     ',
-  '    /   (o)   \\    ',
-  '   /___________\\   ',
-  ' /\\             /\\ ',
-  '/  \\___________/  \\',
-  '|  ( )       ( )  |',
-  '|                 |',
-  '|      \\_Y_/      |',
-  ' \\  \\__/   \\__/  / ',
-  '  \\_____________/  ',
-]
+// Same source the site renders from, so the pfp can never drift from the UI.
+const CAT = JSON.parse(readFileSync('src/lib/cat.json', 'utf8')).art
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
@@ -36,8 +26,9 @@ const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, 
 
 function pfp() {
   const SIZE = 400
-  const FONT = 26
-  const LINE = 29
+  // 25 columns now, so the type drops to keep the art inside the frame.
+  const FONT = 21
+  const LINE = 26
   const blockHeight = CAT.length * LINE
   const top = (SIZE - blockHeight) / 2 + FONT * 0.8
 
